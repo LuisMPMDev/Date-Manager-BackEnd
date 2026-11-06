@@ -1,0 +1,14 @@
+<h2>Usuarios y roles</h2>
+
+@if (falloCarga()) {
+  <p class="alerta" role="alert">No se pudo cargar usuarios y roles.</p>
+}
+
+@if (cargado()) {
+  @if (verUsuarios()) {
+    <app-usuarios-seccion [usuarios]="usuarios()" [roles]="roles()" />
+  }
+  @if (verRoles()) {
+    <app-roles-seccion [usuarios]="usuarios()" [roles]="roles()" />
+  }
+}

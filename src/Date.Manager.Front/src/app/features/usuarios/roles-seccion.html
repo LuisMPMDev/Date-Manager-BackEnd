@@ -1,0 +1,102 @@
+<section data-seccion="roles" aria-labelledby="titulo-roles">
+  <div class="cabecera">
+    <h3 id="titulo-roles">Roles</h3>
+    <button type="button" class="btn primario" data-nuevo (click)="nuevo($event)">Nuevo rol</button>
+  </div>
+
+  <p class="aviso-ok" role="status">{{ aviso() }}</p>
+
+  @if (borrador(); as b) {
+    <form class="formulario" (submit)="guardar($event)" novalidate>
+      <h4 tabindex="-1">{{ esNuevo() ? 'Nuevo rol' : 'Editar rol' }}</h4>
+
+      <div class="campos">
+        <div class="campo">
+          <label for="rol-nombre">Nombre</label>
+          <input id="rol-nombre" name="nombre" type="text" autocomplete="off" [value]="b.nombre" (input)="escribir('nombre', $event)" />
+        </div>
+        <div class="campo">
+          <label for="rol-descripcion">Descripción</label>
+          <input id="rol-descripcion" name="descripcion" type="text" autocomplete="off" [value]="b.descripcion" (input)="escribir('descripcion', $event)" />
+        </div>
+      </div>
+
+      <fieldset class="permisos">
+        <legend>Permisos</legend>
+        <div class="permisos-lista">
+          @for (p of catalogo; track p.id) {
+            <div class="permiso">
+              <label [for]="'permiso-' + p.id">
+                <input type="checkbox" [id]="'permiso-' + p.id" [name]="'permiso-' + p.id"
+                       [checked]="b.permisos.includes(p.id)"
+                       [disabled]="p.id === 'ver_citas' && verCitasFijo()"
+                       [attr.aria-describedby]="p.id === 'ver_citas' && verCitasFijo() ? 'permiso-ver-citas-ayuda' : null"
+                       (change)="marcar(p.id, $event)" />
+                {{ p.etiqueta }}
+              </label>
+              @if (p.id === 'ver_citas' && verCitasFijo()) {
+                <p class="ayuda" id="permiso-ver-citas-ayuda">{{ textoVerCitas }}</p>
+              }
+            </div>
+          }
+        </div>
+      </fieldset>
+
+      @if (error()) {
+        <p class="alerta" role="alert">{{ error() }}</p>
+      }
+
+      <div class="acciones">
+        <button type="submit" class="btn primario" [disabled]="guardando()">Guardar rol</button>
+        <button type="button" class="btn" (click)="cancelar()">Cancelar</button>
+      </div>
+    </form>
+  } @else if (error()) {
+    <p class="alerta" role="alert">{{ error() }}</p>
+  }
+
+  <div class="tabla-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Descripción</th>
+          <th>Usuarios con este rol</th>
+          <th>Permisos</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (f of filas(); track f.rol.id) {
+          <tr [attr.data-fila]="f.rol.id">
+            <td>{{ f.rol.nombre }}</td>
+            <td>{{ f.rol.descripcion }}</td>
+            <td>{{ f.usuarios }}</td>
+            <td>{{ f.rol.permisos.length }}</td>
+            <td class="acciones-fila">
+              @if (confirmando() === f.rol.id) {
+                <div class="confirmar" role="group" [attr.aria-label]="'Confirmar eliminación del rol ' + f.rol.nombre">
+                  <span class="pregunta">¿Eliminar el rol {{ f.rol.nombre }}?</span>
+                  <button type="button" class="btn peligro" (click)="confirmarEliminar(f.rol)">Sí, eliminar</button>
+                  <button type="button" class="btn" data-volver (click)="volver(f.rol.id)">No, volver</button>
+                </div>
+              } @else {
+                <button type="button" class="btn" [attr.aria-label]="'Editar rol ' + f.rol.nombre"
+                        (click)="editar(f.rol, $event)">Editar</button>
+                <button type="button" class="btn peligro" data-eliminar [attr.aria-label]="'Eliminar rol ' + f.rol.nombre"
+                        [attr.aria-disabled]="f.motivo ? 'true' : null"
+                        [attr.aria-describedby]="f.motivo ? 'motivo-rol-' + f.rol.id : null"
+                        (click)="pedirEliminar(f)">Eliminar</button>
+                @if (f.motivo) {
+                  <span class="sr-only" [id]="'motivo-rol-' + f.rol.id">{{ f.motivo }}</span>
+                }
+              }
+            </td>
+          </tr>
+        } @empty {
+          <tr class="vacio"><td colspan="5">Todavía no hay roles.</td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -1,0 +1,112 @@
+<section data-seccion="usuarios" aria-labelledby="titulo-usuarios">
+  <div class="cabecera">
+    <h3 id="titulo-usuarios">Usuarios</h3>
+    <button type="button" class="btn primario" data-nuevo (click)="nuevo($event)">Nuevo usuario</button>
+  </div>
+
+  <p class="aviso-ok" role="status">{{ aviso() }}</p>
+
+  @if (borrador(); as b) {
+    <form class="formulario" (submit)="guardar($event)" novalidate>
+      <h4 tabindex="-1">{{ esNuevo() ? 'Nuevo usuario' : 'Editar usuario' }}</h4>
+
+      <div class="campos">
+        <div class="campo">
+          <label for="usuario-nombre">Nombre</label>
+          <input id="usuario-nombre" name="nombre" type="text" autocomplete="off" [value]="b.nombre" (input)="escribir('nombre', $event)" />
+        </div>
+        <div class="campo">
+          <label for="usuario-apellido">Apellido</label>
+          <input id="usuario-apellido" name="apellido" type="text" autocomplete="off" [value]="b.apellido" (input)="escribir('apellido', $event)" />
+        </div>
+        <div class="campo">
+          <label for="usuario-usuario">Usuario</label>
+          <input id="usuario-usuario" name="usuario" type="text" autocomplete="off" autocapitalize="none" [value]="b.usuario" (input)="escribir('usuario', $event)" />
+        </div>
+        <div class="campo">
+          <label for="usuario-correo">Correo</label>
+          <input id="usuario-correo" name="correo" type="email" autocomplete="off" [value]="b.correo" (input)="escribir('correo', $event)" />
+        </div>
+        <div class="campo">
+          <label for="usuario-telefono">Teléfono (opcional)</label>
+          <input id="usuario-telefono" name="telefono" type="tel" autocomplete="off" [value]="b.telefono" (input)="escribir('telefono', $event)" />
+        </div>
+        <div class="campo">
+          <label for="usuario-clave">Clave</label>
+          <input id="usuario-clave" name="clave" type="password" autocomplete="new-password" [value]="b.clave"
+                 [attr.aria-describedby]="esNuevo() ? null : 'usuario-clave-ayuda'" (input)="escribir('clave', $event)" />
+          @if (!esNuevo()) {
+            <p class="ayuda" id="usuario-clave-ayuda">Déjala vacía para conservar la clave actual.</p>
+          }
+        </div>
+        <div class="campo">
+          <label for="usuario-rol">Rol</label>
+          <select id="usuario-rol" name="rol" (change)="elegirRol($event)">
+            <option value="" [selected]="!b.rolId">Elige un rol</option>
+            @for (r of roles(); track r.id) {
+              <option [value]="r.id" [selected]="r.id === b.rolId">{{ r.nombre }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      @if (error()) {
+        <p class="alerta" role="alert">{{ error() }}</p>
+      }
+
+      <div class="acciones">
+        <button type="submit" class="btn primario" [disabled]="guardando()">Guardar usuario</button>
+        <button type="button" class="btn" (click)="cancelar()">Cancelar</button>
+      </div>
+    </form>
+  } @else if (error()) {
+    <p class="alerta" role="alert">{{ error() }}</p>
+  }
+
+  <div class="tabla-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Apellido</th>
+          <th>Usuario</th>
+          <th>Correo</th>
+          <th>Teléfono</th>
+          <th>Rol</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (f of filas(); track f.usuario.id) {
+          <tr [attr.data-fila]="f.usuario.id">
+            <td>{{ f.usuario.nombre }}</td>
+            <td>{{ f.usuario.apellido }}</td>
+            <td>{{ f.usuario.usuario }}</td>
+            <td>{{ f.usuario.correo }}</td>
+            <td class="nowrap">{{ f.usuario.telefono }}</td>
+            <td>{{ f.rol }}</td>
+            <td class="acciones-fila">
+              @if (confirmando() === f.usuario.id) {
+                <div class="confirmar" role="group" [attr.aria-label]="'Confirmar eliminación de ' + f.nombre">
+                  <span class="pregunta">¿Eliminar a {{ f.nombre }}?</span>
+                  <button type="button" class="btn peligro" (click)="confirmarEliminar(f.usuario)">Sí, eliminar</button>
+                  <button type="button" class="btn" data-volver (click)="volver(f.usuario.id)">No, volver</button>
+                </div>
+              } @else {
+                <button type="button" class="btn" [attr.aria-label]="'Editar usuario ' + f.nombre"
+                        (click)="editar(f.usuario, $event)">Editar</button>
+                <button type="button" class="btn peligro" data-eliminar [attr.aria-label]="'Eliminar usuario ' + f.nombre"
+                        [attr.aria-disabled]="f.motivo ? 'true' : null"
+                        [attr.aria-describedby]="f.motivo ? 'motivo-usuario-' + f.usuario.id : null"
+                        (click)="pedirEliminar(f)">Eliminar</button>
+                @if (f.motivo) {
+                  <span class="sr-only" [id]="'motivo-usuario-' + f.usuario.id">{{ f.motivo }}</span>
+                }
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

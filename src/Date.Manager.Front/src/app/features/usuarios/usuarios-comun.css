@@ -1,0 +1,188 @@
+:host {
+  display: block;
+  margin-bottom: 28px;
+}
+
+.cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+h4 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.aviso-ok {
+  margin: 0;
+  min-height: 1.4em;
+  font-weight: 600;
+}
+
+.formulario {
+  margin-bottom: 14px;
+  padding: 12px;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+.campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 10px;
+}
+
+.campo {
+  min-width: 0;
+}
+
+.campo.ancho {
+  grid-column: 1 / -1;
+}
+
+label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--apoyo);
+}
+
+input[type='text'],
+input[type='tel'],
+input[type='email'],
+input[type='password'],
+select {
+  width: 100%;
+  padding: 7px 8px;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+.ayuda {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--apoyo);
+}
+
+.alerta {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-left: 4px solid var(--rojo);
+  background: var(--fondo);
+  font-weight: 600;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tabla-scroll {
+  overflow-x: auto;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  text-align: left;
+  color: var(--apoyo);
+  font-weight: 600;
+  border-bottom: var(--borde);
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rayado);
+  vertical-align: top;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.vacio td {
+  padding: 16px 10px;
+  color: var(--apoyo);
+  text-align: center;
+}
+
+.acciones-fila {
+  white-space: nowrap;
+}
+
+.acciones-fila .btn {
+  margin-right: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.confirmar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  white-space: normal;
+}
+
+.confirmar .pregunta {
+  margin-right: 4px;
+  font-weight: 600;
+}
+
+/* Un botón «apagado» que sigue siendo enfocable para poder leer por qué no se puede usar. */
+.btn[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn[aria-disabled='true']:hover {
+  background: var(--blanco);
+}
+
+.permisos {
+  margin: 12px 0 0;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--rayado);
+}
+
+legend {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--apoyo);
+}
+
+.permisos-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 4px 12px;
+}
+
+.permiso label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--tinta);
+}
