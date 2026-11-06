@@ -4,7 +4,7 @@
   @switch (paso()) {
     @case (1) {
       <p class="paso">Paso 1 de 2</p>
-      <h1>Reserva tu cita</h1>
+      <h1 tabindex="-1">Reserva tu cita</h1>
       <p class="subtitulo">Elige el servicio y un horario libre.</p>
 
       @if (error()) {
@@ -48,7 +48,7 @@
 
     @case (2) {
       <p class="paso">Paso 2 de 2</p>
-      <h1>Tus datos</h1>
+      <h1 tabindex="-1">Tus datos</h1>
       <p class="subtitulo">Sin crear cuenta.</p>
 
       <div class="resumen">
@@ -80,7 +80,7 @@
     @case (3) {
       @if (confirmada(); as cita) {
         <p class="paso">Listo</p>
-        <h1>Cita confirmada</h1>
+        <h1 tabindex="-1">Cita confirmada</h1>
         <p class="subtitulo">Guarda estos datos por si necesitas consultarla.</p>
         <p class="estado">{{ cita.estado }}</p>
         <div class="resumen">

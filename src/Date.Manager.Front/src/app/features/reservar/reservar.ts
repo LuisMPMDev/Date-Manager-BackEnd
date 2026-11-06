@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { HorarioNoDisponibleError, RELOJ } from '../../core/errores';
@@ -30,6 +30,8 @@ const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export class ReservarComponent implements OnInit {
   private readonly repo = inject(AgendaRepo);
   private readonly reloj = inject(RELOJ);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   protected readonly campos = CAMPOS;
   protected readonly moneda = moneda;
@@ -120,11 +122,14 @@ export class ReservarComponent implements OnInit {
   }
 
   protected continuar(): void {
-    if (this.elegido()) this.paso.set(2);
+    if (!this.elegido()) return;
+    this.paso.set(2);
+    this.enfocarTitulo();
   }
 
   protected cambiarHorario(): void {
     this.paso.set(1);
+    this.enfocarTitulo();
   }
 
   protected async enviar(evento?: Event): Promise<void> {
@@ -132,7 +137,13 @@ export class ReservarComponent implements OnInit {
     this.intentado.set(true);
     const servicio = this.servicio();
     const inicio = this.elegido();
-    if (Object.keys(this.errores()).length || !servicio || !inicio || this.enviando()) return;
+    const errores = this.errores();
+    const primero = CAMPOS.find(c => errores[c.campo]);
+    if (primero) {
+      this.host.nativeElement.querySelector<HTMLElement>(`#campo-${primero.campo}`)?.focus();
+      return;
+    }
+    if (!servicio || !inicio || this.enviando()) return;
 
     this.enviando.set(true);
     try {
@@ -150,12 +161,14 @@ export class ReservarComponent implements OnInit {
       });
       this.confirmada.set(cita);
       this.paso.set(3);
+      this.enfocarTitulo();
     } catch (e) {
       this.error.set(
         e instanceof HorarioNoDisponibleError ? e.message : 'No pudimos reservar tu cita. Intenta de nuevo.',
       );
       this.elegido.set(null);
       this.paso.set(1);
+      this.enfocarTitulo();
       await this.cargarLibres();
     } finally {
       this.enviando.set(false);
@@ -172,6 +185,12 @@ export class ReservarComponent implements OnInit {
     this.datos.set({ nombre: '', apellido: '', telefono: '', correo: '' });
     this.intentado.set(false);
     this.paso.set(1);
+    this.enfocarTitulo();
+  }
+
+  /** Al cambiar de paso se destruye el botón pulsado: el foco pasa al título del paso nuevo. */
+  private enfocarTitulo(): void {
+    afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('h1')?.focus(), { injector: this.injector });
   }
 
   private async cargarLibres(): Promise<void> {

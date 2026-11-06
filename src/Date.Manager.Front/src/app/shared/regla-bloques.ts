@@ -35,7 +35,7 @@ function restar(base: Tramo[], quitar: Tramo[]): Tramo[] {
  * Convierte los datos de un día de un servicio en lo que dibuja la regla de tiempo.
  * - El rango cubre las ventanas, redondeado hacia afuera a horas completas.
  * - Cada horario libre es un hueco clicable de un paso (PASO_MIN).
- * - Lo de cada ventana que ningún horario ofrecido cubre (con la duración del servicio) va «ocupado».
+ * - Lo de cada ventana que no es la celda (PASO_MIN) de un inicio ofrecido va «ocupado»: todo minuto no reservable queda rayado.
  * - Lo que queda fuera de toda ventana dentro del rango va «fuera».
  * - El horario elegido es un bloque tan alto como la duración del servicio.
  * Devuelve null si ese día el servicio no tiene ventanas.
@@ -53,7 +53,8 @@ export function construirRegla(p: {
   const hastaMin = Math.ceil(ventanas[ventanas.length - 1][1] / 60) * 60;
 
   const iniciosMin = p.libres.map(aMinutos);
-  const cubierto = unir(iniciosMin.map(i => [i, i + p.duracionMin] as Tramo));
+  // Cada inicio ofrecido es una celda de un paso: el resto de la ventana no se puede reservar.
+  const cubierto = unir(iniciosMin.map(i => [i, i + PASO_MIN] as Tramo));
 
   const bloques: BloqueRegla[] = [
     ...restar([[desdeMin, hastaMin]], ventanas).map(([d, h]): BloqueRegla => ({ desdeMin: d, hastaMin: h, tipo: 'fuera', etiqueta: 'Fuera de horario' })),

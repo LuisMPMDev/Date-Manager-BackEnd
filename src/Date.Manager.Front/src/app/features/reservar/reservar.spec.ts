@@ -200,6 +200,69 @@ describe('ReservarComponent', () => {
     expect(el.querySelector('[data-testid="bloque"].elegido')).toBeNull();
   });
 
+  it('al cambiar de paso el foco pasa al título del paso nuevo', async () => {
+    const { fixture, el } = await crear();
+    const titulo = () => el.querySelector('h1')!;
+    await elegirServicio(fixture, el, 'Sesión estándar');
+    await elegirHueco(fixture, el, '08:00');
+
+    boton(el, 'Continuar').click();
+    await esperar(fixture);
+    expect(titulo().textContent).toContain('Tus datos');
+    expect(document.activeElement).toBe(titulo());
+
+    Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes('Cambiar horario'))!.click();
+    await esperar(fixture);
+    expect(titulo().textContent).toContain('Reserva tu cita');
+    expect(document.activeElement).toBe(titulo());
+
+    boton(el, 'Continuar').click();
+    await esperar(fixture);
+    llenarDatos(el);
+    await enviar(fixture, el);
+    expect(titulo().textContent).toContain('Cita confirmada');
+    expect(document.activeElement).toBe(titulo());
+
+    boton(el, 'Reservar otra cita').click();
+    await esperar(fixture);
+    expect(document.activeElement).toBe(titulo());
+  });
+
+  it('al volver por un horario ocupado el foco queda en el título del paso 1', async () => {
+    const { fixture, el } = await crear();
+    await elegirServicio(fixture, el, 'Sesión estándar');
+    await elegirHueco(fixture, el, '08:00');
+    boton(el, 'Continuar').click();
+    await esperar(fixture);
+    llenarDatos(el);
+    await TestBed.inject(AgendaRepo).reservar({
+      servicioId: 'srv-estandar',
+      fecha: '2026-11-09',
+      inicio: '08:00',
+      cliente: { nombre: 'Otra', apellido: 'Persona', telefono: '300 000 0000', correo: 'otra@correo.com' },
+    });
+    await enviar(fixture, el);
+    expect(document.activeElement).toBe(el.querySelector('h1'));
+  });
+
+  it('un envío con errores lleva el foco al primer campo inválido', async () => {
+    const { fixture, el } = await crear();
+    await elegirServicio(fixture, el, 'Sesión estándar');
+    await elegirHueco(fixture, el, '08:00');
+    boton(el, 'Continuar').click();
+    await esperar(fixture);
+
+    await enviar(fixture, el);
+    expect(document.activeElement).toBe(el.querySelector('input[name="nombre"]'));
+
+    escribir(el, 'nombre', 'Camila');
+    escribir(el, 'apellido', 'Rojas');
+    escribir(el, 'telefono', '300 123 4567');
+    escribir(el, 'correo', 'sin-arroba');
+    await enviar(fixture, el);
+    expect(document.activeElement).toBe(el.querySelector('input[name="correo"]'));
+  });
+
   it('tiene un enlace discreto «Acceso del negocio» hacia el inicio de sesión', async () => {
     const { el } = await crear();
     const enlace = Array.from(el.querySelectorAll('a')).find(a => a.textContent?.trim() === 'Acceso del negocio')!;
