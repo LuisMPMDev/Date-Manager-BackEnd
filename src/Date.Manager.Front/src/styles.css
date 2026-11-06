@@ -1,1 +1,113 @@
-/* You can add global styles to this file, and also import other style files */
+:root {
+  --fondo: #E9EEF2;
+  --tinta: #101C33;
+  --cobalto: #2B50E6;
+  --apoyo: #51607A;
+  --rayado: #C9D2DC;
+  --ambar: #D68A00;
+  --rojo: #C0392B;
+  --blanco: #FFFFFF;
+  --borde: 1.5px solid var(--tinta);
+  --fuente: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  border-radius: 0;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--fondo);
+  color: var(--tinta);
+  font-family: var(--fuente);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.02em;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+:focus-visible {
+  outline: 2px solid var(--tinta);
+  outline-offset: 2px;
+}
+
+/* Botones y campos compartidos por las pantallas */
+.btn {
+  display: inline-block;
+  padding: 6px 14px;
+  border: var(--borde);
+  background: var(--blanco);
+  color: var(--tinta);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--fondo);
+}
+
+.btn.primario {
+  background: var(--cobalto);
+  border-color: var(--cobalto);
+  color: var(--blanco);
+}
+
+.btn.primario:hover:not(:disabled) {
+  background: var(--tinta);
+  border-color: var(--tinta);
+}
+
+.btn.peligro {
+  border-color: var(--rojo);
+  color: var(--rojo);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

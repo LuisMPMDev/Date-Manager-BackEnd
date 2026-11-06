@@ -1,0 +1,34 @@
+<main class="login">
+  <section class="caja">
+    <p class="marca">DateManager</p>
+    <h1>Iniciar sesión</h1>
+
+    <form (submit)="enviar($event)" novalidate>
+      <label for="usuario">Usuario</label>
+      <input id="usuario" name="usuario" type="text" autocomplete="username"
+             [value]="usuario()" (input)="escribir('usuario', $event)" />
+
+      <label for="clave">Clave</label>
+      <input id="clave" name="clave" type="password" autocomplete="current-password"
+             [value]="clave()" (input)="escribir('clave', $event)" />
+
+      @if (error()) {
+        <p class="error" role="alert">{{ error() }}</p>
+      }
+
+      <button type="submit" class="btn primario" [disabled]="ocupado()">Entrar</button>
+    </form>
+
+    <div class="ejemplo">
+      <h2>Cuentas de ejemplo</h2>
+      <p>Entra con un clic para probar cada rol.</p>
+      <div class="tarjetas">
+        @for (cuenta of cuentas; track cuenta.usuario) {
+          <button type="button" class="tarjeta" [disabled]="ocupado()" (click)="entrarCon(cuenta)">
+            {{ cuenta.etiqueta }}
+          </button>
+        }
+      </div>
+    </div>
+  </section>
+</main>

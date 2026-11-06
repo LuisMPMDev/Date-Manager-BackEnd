@@ -1,0 +1,91 @@
+.login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.caja {
+  width: min(100%, 400px);
+  background: var(--blanco);
+  border: 1.5px solid var(--tinta);
+  padding: 24px;
+}
+
+.marca {
+  margin: 0 0 4px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--cobalto);
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: 24px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+input {
+  padding: 8px 10px;
+  border: 1.5px solid var(--tinta);
+  background: var(--blanco);
+  font: inherit;
+  margin-bottom: 8px;
+}
+
+.error {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-left: 4px solid var(--rojo);
+  background: #fceae7;
+  color: var(--rojo);
+  font-weight: 600;
+}
+
+.ejemplo {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1.5px solid var(--tinta);
+}
+
+.ejemplo h2 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
+.ejemplo p {
+  margin: 0 0 10px;
+  color: var(--apoyo);
+  font-size: 13px;
+}
+
+.tarjetas {
+  display: grid;
+  gap: 8px;
+}
+
+.tarjeta {
+  text-align: left;
+  padding: 10px 12px;
+  border: 1.5px solid var(--tinta);
+  background: var(--fondo);
+  color: var(--tinta);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tarjeta:hover:not(:disabled) {
+  background: var(--tinta);
+  color: var(--blanco);
+}

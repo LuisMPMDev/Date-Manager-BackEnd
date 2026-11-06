@@ -1,3 +1,64 @@
 import { Routes } from '@angular/router';
+import { conPermiso, conSesion, sinSesion } from './core/guards';
+import { PanelShell } from './layout/panel-shell';
 
-export const routes: Routes = [];
+export const routes: Routes = [
+  { path: '', pathMatch: 'full', redirectTo: 'reservar' },
+  {
+    path: 'reservar',
+    loadComponent: () => import('./features/reservar/reservar').then(m => m.ReservarComponent),
+  },
+  {
+    path: 'login',
+    canActivate: [sinSesion],
+    loadComponent: () => import('./features/login/login').then(m => m.LoginComponent),
+  },
+  {
+    path: '',
+    component: PanelShell,
+    canActivate: [conSesion],
+    children: [
+      {
+        path: 'panel',
+        canActivate: [conPermiso],
+        data: { permisos: ['ver_panel'] },
+        loadComponent: () => import('./features/panel/panel').then(m => m.PanelComponent),
+      },
+      {
+        path: 'agenda',
+        canActivate: [conPermiso],
+        data: { permisos: ['ver_citas'] },
+        loadComponent: () => import('./features/agenda/agenda').then(m => m.AgendaComponent),
+      },
+      {
+        path: 'citas',
+        canActivate: [conPermiso],
+        data: { permisos: ['ver_citas'] },
+        loadComponent: () => import('./features/citas/citas').then(m => m.CitasComponent),
+      },
+      {
+        path: 'servicios',
+        canActivate: [conPermiso],
+        data: { permisos: ['gestionar_servicios'] },
+        loadComponent: () => import('./features/servicios/servicios').then(m => m.ServiciosComponent),
+      },
+      {
+        path: 'clientes',
+        canActivate: [conPermiso],
+        data: { permisos: ['gestionar_clientes'] },
+        loadComponent: () => import('./features/clientes/clientes').then(m => m.ClientesComponent),
+      },
+      {
+        path: 'usuarios',
+        canActivate: [conPermiso],
+        data: { permisos: ['gestionar_usuarios', 'gestionar_roles'] },
+        loadComponent: () => import('./features/usuarios/usuarios').then(m => m.UsuariosComponent),
+      },
+      {
+        path: 'sin-acceso',
+        loadComponent: () => import('./features/sin-acceso/sin-acceso').then(m => m.SinAccesoComponent),
+      },
+    ],
+  },
+  { path: '**', redirectTo: 'reservar' },
+];

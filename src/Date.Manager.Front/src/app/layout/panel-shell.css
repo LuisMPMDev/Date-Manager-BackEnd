@@ -1,0 +1,135 @@
+.app {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.lateral {
+  background: var(--tinta);
+  color: #c9d2e6;
+  padding: 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.marca {
+  margin: 0;
+  padding: 2px 8px 14px;
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  color: var(--blanco);
+}
+
+nav {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.enlace {
+  display: block;
+  padding: 8px 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.enlace:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.enlace.activo {
+  background: var(--fondo);
+  color: var(--tinta);
+  font-weight: 700;
+}
+
+.sesion {
+  margin-top: auto;
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quien {
+  margin: 0 0 4px;
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.quien strong {
+  color: var(--blanco);
+}
+
+.quien span {
+  font-size: 12px;
+  color: #9fb0d0;
+}
+
+.accion {
+  padding: 6px 10px;
+  border: 1.5px solid #c9d2e6;
+  background: transparent;
+  color: #c9d2e6;
+  text-align: left;
+  font-weight: 600;
+}
+
+.accion:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.lateral :focus-visible {
+  outline-color: var(--blanco);
+}
+
+.contenido {
+  padding: 16px 20px 22px;
+  min-width: 0;
+}
+
+/* Barra superior desplazable en pantallas estrechas */
+@media (max-width: 899px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .lateral {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .marca {
+    padding: 0 8px 0 0;
+    flex: none;
+  }
+
+  nav {
+    flex-direction: row;
+    flex: none;
+  }
+
+  .sesion {
+    margin: 0 0 0 auto;
+    padding: 0;
+    flex-direction: row;
+    align-items: center;
+    flex: none;
+  }
+
+  .quien {
+    margin: 0;
+  }
+
+  .accion {
+    flex: none;
+  }
+}

@@ -1,0 +1,26 @@
+<div class="app">
+  <aside class="lateral">
+    <p class="marca">DateManager</p>
+
+    <nav aria-label="Principal">
+      @for (item of menu(); track item.ruta) {
+        <a class="enlace" [routerLink]="item.ruta" routerLinkActive="activo">{{ item.etiqueta }}</a>
+      }
+    </nav>
+
+    <div class="sesion">
+      @if (sesion.usuario(); as u) {
+        <p class="quien">
+          <strong>{{ u.nombre }} {{ u.apellido }}</strong>
+          <span>{{ sesion.rol()?.nombre }}</span>
+        </p>
+      }
+      <button type="button" class="accion" (click)="cerrarSesion()">Cerrar sesión</button>
+      <button type="button" class="accion" (click)="reiniciarDemo()">Reiniciar demo</button>
+    </div>
+  </aside>
+
+  <main class="contenido">
+    <router-outlet />
+  </main>
+</div>
