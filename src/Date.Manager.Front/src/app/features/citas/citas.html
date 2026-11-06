@@ -34,7 +34,7 @@
   <p class="alerta" role="alert">{{ error() }}</p>
 }
 
-@if (citaMoviendo(); as m) {
+@for (m of dialogosMover(); track m.cita.id) {
   <app-mover-cita [cita]="m.cita" [servicio]="m.servicio" [cliente]="nombreCompleto(m.cliente)"
                   (movida)="movida($event)" (cerrar)="cerrarMover()" />
 }

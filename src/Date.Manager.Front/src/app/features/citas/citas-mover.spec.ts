@@ -164,4 +164,60 @@ describe('CitasComponent: mover una cita', () => {
     await esperar(fixture);
     expect(dialogo(el)).toBeNull();
   });
+
+  it('abrir «Mover cita» en otra cita reinicia el diálogo con los datos de la nueva', async () => {
+    const { fixture, el } = await crear();
+    document.body.appendChild(el);
+    const citas = await repo().citas();
+    const visibles = Array.from(el.querySelectorAll<HTMLElement>('tr[data-cita]')).map(f => citas.find(c => c.id === f.dataset['cita'])!);
+    const confirmadas = visibles.filter(c => c.estado === 'Confirmada');
+    const a = confirmadas[0];
+    const b = confirmadas.find(c => c.servicioId !== a.servicioId)!;
+    const servicios = await repo().servicios();
+    const nombreB = servicios.find(s => s.id === b.servicioId)!.nombre;
+    const nombreA = servicios.find(s => s.id === a.servicioId)!.nombre;
+
+    // Cita A: elige un horario que otra persona ocupa antes de confirmar, para dejar selección y error.
+    await abrirMover(fixture, el, a);
+    do {
+      boton(dialogo(el)!, '›').click();
+      await esperar(fixture);
+    } while (!huecos(dialogo(el)!).length);
+    const horaA = huecos(dialogo(el)!)[0].textContent!.trim();
+    const fechaA = dialogo(el)!.querySelector<HTMLElement>('[data-testid="dia"]')!.dataset['fecha']!;
+    huecos(dialogo(el)!)[0].click();
+    await esperar(fixture);
+    await repo().reservar({
+      servicioId: a.servicioId, fecha: fechaA, inicio: horaA,
+      cliente: { nombre: 'Otra', apellido: 'Persona', telefono: '0', correo: 'otra@correo.com' },
+    });
+    boton(dialogo(el)!, 'Mover cita').click();
+    await esperar(fixture);
+    expect(alerta(el)).not.toBe('');
+
+    // Cita B, de otro servicio: el diálogo parte de cero.
+    const abrirB = boton(fila(el, b.id), 'Mover cita');
+    abrirB.focus();
+    abrirB.click();
+    await esperar(fixture);
+
+    const dlg = dialogo(el)!;
+    expect(dlg.textContent).toContain(nombreB);
+    expect(dlg.textContent).not.toContain(nombreA);
+    expect(alerta(el)).toBe('');
+    expect(boton(dlg, 'Mover cita').disabled).toBe(true);
+    expect(dlg.textContent).not.toContain('Nuevo horario');
+    expect(document.activeElement).toBe(dlg.querySelector('h3'));
+
+    const fechaB = dlg.querySelector<HTMLElement>('[data-testid="dia"]')!.dataset['fecha']!;
+    const libresB = await repo().horariosLibres(b.servicioId, fechaB, b.id);
+    expect(libresB.length).toBeGreaterThan(0);
+    expect(huecos(dlg).map(h => h.textContent!.trim())).toEqual(libresB);
+
+    boton(dlg, 'Cerrar').click();
+    await esperar(fixture);
+    expect(dialogo(el)).toBeNull();
+    expect(document.activeElement).toBe(boton(fila(el, b.id), 'Mover cita'));
+    el.remove();
+  });
 });

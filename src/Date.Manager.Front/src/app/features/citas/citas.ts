@@ -54,6 +54,12 @@ export class CitasComponent {
     return fila && fila.servicio ? { ...fila, servicio: fila.servicio } : null;
   });
 
+  /** Lista de 0 o 1 diálogos: se rastrea por cita para que cada cita tenga su propio diálogo nuevo. */
+  protected readonly dialogosMover = computed(() => {
+    const m = this.citaMoviendo();
+    return m ? [m] : [];
+  });
+
   constructor() {
     effect(() => {
       this.repo.cambios();
