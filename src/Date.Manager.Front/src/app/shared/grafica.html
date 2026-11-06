@@ -1,0 +1,15 @@
+<canvas #lienzo aria-hidden="true"></canvas>
+
+<div class="sr-only">
+  <table>
+    <caption>{{ resumen() }}</caption>
+    <tbody>
+      @for (etiqueta of etiquetas(); track $index) {
+        <tr>
+          <th scope="row">{{ etiqueta }}</th>
+          <td>{{ valores()[$index] }}{{ unidad() }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

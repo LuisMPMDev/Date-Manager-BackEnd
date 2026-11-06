@@ -1,0 +1,197 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--apoyo);
+}
+
+.error {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-left: 4px solid var(--rojo);
+  background: var(--blanco);
+  font-weight: 600;
+}
+
+/* Indicadores */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 9px 10px;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+.kpi-etiqueta {
+  font-size: 12px;
+  color: var(--apoyo);
+}
+
+.kpi-valor {
+  margin: 2px 0;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.kpi-detalle {
+  font-size: 12px;
+  color: var(--apoyo);
+}
+
+.kpi-detalle.ok {
+  color: var(--verde);
+  font-weight: 600;
+}
+
+.kpi-detalle.mal {
+  color: var(--rojo);
+  font-weight: 600;
+}
+
+/* Bloques */
+.rejilla {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.bloque {
+  min-width: 0;
+  padding: 10px 12px;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+.bloque.ancho {
+  grid-column: 1 / -1;
+}
+
+.agenda-caja {
+  padding-top: 20px;
+}
+
+/* Alertas */
+.alertas ul {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.alerta-item {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-left: 4px solid var(--cobalto);
+  background: var(--cobalto-claro);
+  text-align: left;
+}
+
+.alerta-item[data-tipo='cita_cancelada'] {
+  border-left-color: var(--rojo);
+  background: var(--rojo-claro);
+}
+
+.alerta-item[data-tipo='servicio_sin_horario'] {
+  border-left-color: var(--ambar);
+  background: var(--ambar-claro);
+}
+
+.alerta-item:hover {
+  filter: brightness(0.96);
+}
+
+.alerta-item small {
+  display: block;
+  color: var(--apoyo);
+}
+
+.mas,
+.vacio {
+  margin: 8px 0 0;
+  color: var(--apoyo);
+}
+
+/* Tabla de próximas citas */
+.tabla-scroll {
+  position: relative; /* contiene el texto oculto de la tabla para que no ensanche la página */
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  text-align: left;
+  color: var(--apoyo);
+  font-weight: 600;
+  border-bottom: var(--borde);
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--pista);
+  vertical-align: top;
+}
+
+tr.vacio td {
+  padding: 14px 8px;
+  text-align: center;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.fecha {
+  display: block;
+  color: var(--apoyo);
+}
+
+.chip {
+  display: inline-block;
+  padding: 0 6px;
+  border: var(--borde);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+td .btn {
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .rejilla {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

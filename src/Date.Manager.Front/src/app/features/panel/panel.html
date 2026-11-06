@@ -1,0 +1,102 @@
+<h2 tabindex="-1">{{ saludo() }}</h2>
+
+@if (error()) {
+  <p class="error" role="alert">{{ error() }}</p>
+}
+
+@if (vista(); as v) {
+  <ul class="kpis" aria-label="Indicadores">
+    @for (k of v.kpis; track k.id) {
+      <li class="kpi">
+        <span class="kpi-etiqueta">{{ k.etiqueta }}</span>
+        <strong class="kpi-valor">{{ k.valor }}</strong>
+        <span class="kpi-detalle" [class.ok]="k.tono === 'ok'" [class.mal]="k.tono === 'mal'">{{ k.detalle }}</span>
+      </li>
+    }
+  </ul>
+
+  <div class="rejilla">
+    <section class="bloque agenda" aria-labelledby="t-agenda">
+      <h3 id="t-agenda">Agenda de hoy: una columna por servicio</h3>
+      <div class="agenda-caja">
+        <app-agenda-dia [fecha]="hoy()" />
+      </div>
+    </section>
+
+    <section class="bloque alertas" aria-labelledby="t-alertas">
+      <h3 id="t-alertas">Alertas</h3>
+      @if (v.alertas.length) {
+        <ul>
+          @for (a of v.alertas; track a.tipo + a.ref) {
+            <li>
+              <button type="button" class="alerta-item" [attr.data-tipo]="a.tipo" (click)="abrir(a)">
+                <strong>{{ a.titulo }}</strong>
+                <small>{{ a.detalle }}</small>
+              </button>
+            </li>
+          }
+        </ul>
+        @if (v.alertasExtra > 0) {
+          <p class="mas">y {{ v.alertasExtra }} más.</p>
+        }
+      } @else {
+        <p class="vacio">Todo en orden: no hay alertas.</p>
+      }
+    </section>
+
+    <section class="bloque" aria-labelledby="t-dias">
+      <h3 id="t-dias">Citas por día, últimos 30 días</h3>
+      <app-grafica tipo="barras" [etiquetas]="v.citasPorDia.etiquetas" [valores]="v.citasPorDia.valores"
+                   [resumen]="v.citasPorDia.resumen" />
+    </section>
+
+    <section class="bloque" aria-labelledby="t-ocupacion">
+      <h3 id="t-ocupacion">Ocupación por servicio (esta semana)</h3>
+      <app-grafica class="ocupacion" tipo="barras-h" [etiquetas]="v.ocupacion.etiquetas" [valores]="v.ocupacion.valores"
+                   [resumen]="v.ocupacion.resumen" unidad="%" [maximo]="100"
+                   [style.--alto-grafica]="(v.ocupacion.etiquetas.length * 44 + 40) + 'px'" />
+    </section>
+
+    <section class="bloque ancho proximas" aria-labelledby="t-proximas">
+      <h3 id="t-proximas">Próximas citas</h3>
+      <div class="tabla-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Hora</th>
+              <th>Cliente</th>
+              <th>Servicio</th>
+              <th>Teléfono</th>
+              <th>Estado</th>
+              <th><span class="sr-only">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (f of v.proximas; track f.cita.id) {
+              <tr [attr.data-cita]="f.cita.id">
+                <td class="nowrap">
+                  <strong>{{ f.cita.inicio }}</strong>
+                  @if (!f.hoy) {
+                    <small class="fecha">{{ fechaLarga(f.cita.fecha) }}</small>
+                  }
+                </td>
+                <td>{{ nombreCompleto(f.cliente) }}</td>
+                <td>{{ f.servicio?.nombre }}</td>
+                <td class="nowrap">{{ f.cliente?.telefono }}</td>
+                <td><span class="chip">{{ f.cita.estado }}</span></td>
+                <td class="nowrap">
+                  <button type="button" class="btn" (click)="abrirCitas()"
+                          [attr.aria-label]="'Abrir cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Abrir</button>
+                </td>
+              </tr>
+            } @empty {
+              <tr class="vacio">
+                <td colspan="6">No hay citas próximas.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+}
