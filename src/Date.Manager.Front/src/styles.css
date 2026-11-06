@@ -97,6 +97,12 @@ button:disabled {
   color: var(--rojo);
 }
 
+/* El contenedor de tablas ancla a los .sr-only de sus filas: sin esto, quedan fuera del recorte
+   y ensanchan la página entera en pantallas estrechas. */
+.tabla-scroll {
+  position: relative;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
