@@ -1,0 +1,101 @@
+<div class="cabecera">
+  <h2>Servicios</h2>
+  <button type="button" class="btn primario" data-nuevo (click)="nuevo($event)">Nuevo servicio</button>
+</div>
+
+@if (borrador(); as b) {
+  <form class="formulario" (submit)="guardar($event)" novalidate>
+    <h3 tabindex="-1">{{ titulo() }}</h3>
+
+    <div class="campos">
+      <div class="campo ancho">
+        <label for="campo-nombre">Nombre</label>
+        <input id="campo-nombre" name="nombre" type="text" [value]="b.nombre" (input)="escribir('nombre', $event)" />
+      </div>
+      <div class="campo">
+        <label for="campo-duracion">Duración (min)</label>
+        <input id="campo-duracion" name="duracion" type="number" min="1" step="1" inputmode="numeric"
+               [value]="b.duracion" (input)="escribir('duracion', $event)" />
+      </div>
+      <div class="campo">
+        <label for="campo-valor">Valor</label>
+        <input id="campo-valor" name="valor" type="number" min="0" step="1000" inputmode="numeric"
+               [value]="b.valor" (input)="escribir('valor', $event)" />
+      </div>
+      <label class="activo">
+        <input name="activo" type="checkbox" [checked]="b.activo" (change)="marcarActivo($event)" />
+        Activo
+      </label>
+    </div>
+
+    <fieldset class="ventanas">
+      <legend>Ventanas de disponibilidad</legend>
+      @for (v of b.ventanas; track v.id; let i = $index) {
+        <div class="ventana" data-testid="ventana">
+          <div class="campo">
+            <label [for]="'dia-' + i">Día</label>
+            <select [id]="'dia-' + i" [name]="'dia-' + i" (change)="elegirDia(i, $event)">
+              @for (d of dias; track d.valor) {
+                <option [value]="d.valor" [selected]="d.valor === v.dia">{{ d.nombre }}</option>
+              }
+            </select>
+          </div>
+          <div class="campo">
+            <label [for]="'inicio-' + i">Inicio</label>
+            <input [id]="'inicio-' + i" [name]="'inicio-' + i" type="time" [value]="v.inicio"
+                   (input)="escribirHora(i, 'inicio', $event)" />
+          </div>
+          <div class="campo">
+            <label [for]="'fin-' + i">Fin</label>
+            <input [id]="'fin-' + i" [name]="'fin-' + i" type="time" [value]="v.fin"
+                   (input)="escribirHora(i, 'fin', $event)" />
+          </div>
+          <button type="button" class="btn" (click)="quitarVentana(i)">Quitar</button>
+        </div>
+      } @empty {
+        <p class="aviso">Sin ventanas: los clientes no podrán reservar este servicio.</p>
+      }
+      <button type="button" class="btn" (click)="agregarVentana()">Agregar ventana</button>
+    </fieldset>
+
+    @if (error()) {
+      <p class="alerta" role="alert">{{ error() }}</p>
+    }
+
+    <div class="acciones">
+      <button type="submit" class="btn primario" [disabled]="guardando()">Guardar servicio</button>
+      <button type="button" class="btn" (click)="cancelar()">Cancelar</button>
+    </div>
+  </form>
+}
+
+<div class="tabla-scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Duración</th>
+        <th>Valor</th>
+        <th>Estado</th>
+        <th>Ventanas</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (s of servicios(); track s.id) {
+        <tr>
+          <td>{{ s.nombre }}</td>
+          <td>{{ s.duracionMin }} min</td>
+          <td>{{ moneda(s.valor) }}</td>
+          <td><span class="chip" [class.inactivo]="!s.activo">{{ s.activo ? 'Activo' : 'Inactivo' }}</span></td>
+          <td class="ventanas-resumen">{{ resumenVentanas(s.ventanas) || 'Sin ventanas' }}</td>
+          <td class="acciones-fila">
+            <button type="button" class="btn" [attr.aria-label]="'Editar ' + s.nombre" (click)="editar(s, $event)">Editar</button>
+            <button type="button" class="btn" [attr.aria-label]="(s.activo ? 'Desactivar ' : 'Activar ') + s.nombre"
+                    (click)="alternarActivo(s)">{{ s.activo ? 'Desactivar' : 'Activar' }}</button>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

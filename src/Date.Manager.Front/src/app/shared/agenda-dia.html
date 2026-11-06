@@ -1,0 +1,14 @@
+@if (agenda(); as a) {
+  <div class="columnas" role="group" aria-label="Agenda del día">
+    @for (c of a.columnas; track c.servicioId) {
+      <section class="columna" data-testid="columna">
+        <h3>{{ c.nombre }}</h3>
+        <app-regla-tiempo [desdeMin]="a.desdeMin" [hastaMin]="a.hastaMin" [bloques]="c.bloques"
+                          [ahoraMin]="ahoraMin()" />
+      </section>
+    }
+  </div>
+  <p class="leyenda">Gris = ya atendida · rayado = fuera del horario del servicio · línea roja = ahora.</p>
+} @else if (cargado()) {
+  <p class="aviso">Ningún servicio atiende este día.</p>
+}

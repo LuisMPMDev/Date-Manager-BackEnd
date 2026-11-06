@@ -1,0 +1,17 @@
+<h2>Agenda</h2>
+
+<div class="barra">
+  <button type="button" class="btn flecha" aria-label="Día anterior" (click)="cambiarDia(-1)">‹</button>
+  <span class="dia" data-testid="dia" aria-live="polite">{{ fechaLarga(fecha()) }}</span>
+  <button type="button" class="btn flecha" aria-label="Día siguiente" (click)="cambiarDia(1)">›</button>
+
+  <label class="selector">
+    <span class="sr-only">Fecha</span>
+    <input type="date" [value]="fecha()" (change)="elegirFecha($event)" />
+  </label>
+  <button type="button" class="btn" [disabled]="fecha() === hoy" (click)="irAHoy()">Hoy</button>
+</div>
+
+<div class="bloque-agenda">
+  <app-agenda-dia [fecha]="fecha()" />
+</div>

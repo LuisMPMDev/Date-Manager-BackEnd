@@ -3,10 +3,10 @@ import { BloqueRegla, HuecoRegla } from './regla-tiempo';
 
 export interface ReglaDia { desdeMin: number; hastaMin: number; bloques: BloqueRegla[]; huecos: HuecoRegla[] }
 
-type Tramo = [desde: number, hasta: number];
+export type Tramo = [desde: number, hasta: number];
 
 /** Une tramos que se tocan o se solapan; devuelve la lista ordenada. */
-function unir(tramos: Tramo[]): Tramo[] {
+export function unir(tramos: Tramo[]): Tramo[] {
   const unidos: Tramo[] = [];
   for (const [d, h] of [...tramos].sort((a, b) => a[0] - b[0])) {
     const ultimo = unidos[unidos.length - 1];
@@ -17,7 +17,7 @@ function unir(tramos: Tramo[]): Tramo[] {
 }
 
 /** Lo que queda de `base` (ya unida) al quitarle `quitar` (ya unida). Solo tramos no vacíos. */
-function restar(base: Tramo[], quitar: Tramo[]): Tramo[] {
+export function restar(base: Tramo[], quitar: Tramo[]): Tramo[] {
   const resto: Tramo[] = [];
   for (const [d, h] of base) {
     let cursor = d;

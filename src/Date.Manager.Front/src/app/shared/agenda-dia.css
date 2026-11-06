@@ -1,0 +1,29 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.columnas {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(190px, 1fr);
+  overflow-x: auto;
+}
+
+.columna {
+  min-width: 0;
+  padding-right: 8px;
+}
+
+h3 {
+  margin: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.leyenda,
+.aviso {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--apoyo);
+}

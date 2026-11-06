@@ -1,0 +1,39 @@
+h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.flecha {
+  min-width: 44px;
+  min-height: 36px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.dia {
+  min-width: 170px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.selector input {
+  padding: 6px 8px;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+.bloque-agenda {
+  padding: 28px 12px 12px;
+  border: var(--borde);
+  background: var(--blanco);
+  min-width: 0;
+}
