@@ -185,6 +185,12 @@ describe('DemoAgendaRepo', () => {
     expect(await repo.iniciarSesion('nadie', 'demo123')).toBeNull();
   });
 
+  it('iniciarSesion ignora mayúsculas y espacios del usuario, pero la clave es exacta', async () => {
+    expect((await repo.iniciarSesion('  MARTA ', 'demo123'))!.usuario).toBe('marta');
+    expect(await repo.iniciarSesion('  MARTA ', 'DEMO123')).toBeNull();
+    expect(await repo.iniciarSesion('MARTA', 'otra')).toBeNull();
+  });
+
   it('cambios sube con cada escritura exitosa y no con las lecturas', async () => {
     expect(repo.cambios()).toBe(0);
     const consulta = await servicioPorNombre(repo, 'Consulta inicial');

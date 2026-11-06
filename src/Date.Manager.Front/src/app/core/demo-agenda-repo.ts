@@ -188,7 +188,8 @@ export class DemoAgendaRepo extends AgendaRepo {
   }
 
   async iniciarSesion(usuario: string, clave: string): Promise<Usuario | null> {
-    const encontrado = this.datos().usuarios.find(u => u.usuario === usuario && u.clave === clave);
+    const buscado = usuario.trim().toLowerCase();
+    const encontrado = this.datos().usuarios.find(u => u.usuario.toLowerCase() === buscado && u.clave === clave);
     return encontrado ? copia(encontrado) : null;
   }
 
