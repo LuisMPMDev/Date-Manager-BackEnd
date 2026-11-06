@@ -1,0 +1,76 @@
+<h2>Flujo del cliente con la regla de tiempo</h2>
+<p class="subtitle">Tres pantallas, sin cuenta: elegir servicio y horario, dejar sus datos, ver la cita confirmada. La cita queda Confirmada al instante.</p>
+
+<style>
+  .flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+  .dm{font-family:"Segoe UI",system-ui,sans-serif;font-size:13px;line-height:1.35;height:520px;overflow:hidden;background:#E9EEF2;color:#101C33;padding:18px;border:1px solid #c9d2dc}
+  .dm .cap{font-size:11px;color:#51607a;margin-bottom:10px}
+  .dm .t{font-size:19px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px}
+  .dm .s{color:#51607a;margin-bottom:12px}
+  .dm .svc{display:flex;justify-content:space-between;padding:7px 10px;border:1.5px solid #101C33;margin-bottom:5px;background:#fff}
+  .dm .svc.on{background:#101C33;color:#fff}
+  .dm .day{display:flex;justify-content:space-between;align-items:center;margin:12px 0 8px;font-weight:700}
+  .dm .day span{border:1.5px solid #101C33;padding:1px 8px;background:#fff}
+  .dm .rule{position:relative;height:200px;border-left:2px solid #101C33;margin-left:42px}
+  .dm .tick{position:absolute;left:-42px;width:36px;text-align:right;font-size:11px;color:#51607a}
+  .dm .busy{position:absolute;left:8px;right:0;background:repeating-linear-gradient(135deg,#c9d2dc 0 4px,#E9EEF2 4px 8px);color:#51607a;font-size:11px;padding:3px 8px}
+  .dm .pick{position:absolute;left:8px;right:0;background:#2B50E6;color:#fff;padding:6px 8px;font-weight:600}
+  .dm .btn{margin-top:14px;background:#2B50E6;color:#fff;padding:11px;text-align:center;font-weight:700}
+  .dm .btn.off{background:#c9d2dc;color:#51607a}
+  .dm .sum{background:#2B50E6;color:#fff;padding:10px;margin-bottom:14px}
+  .dm .sum small{display:block;opacity:.85}
+  .dm label{display:block;font-size:11px;color:#51607a;margin-bottom:2px}
+  .dm .in{background:#fff;border:1.5px solid #101C33;padding:7px 8px;margin-bottom:9px}
+  .dm .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .dm .state{display:inline-block;border:1.5px dashed #101C33;padding:2px 8px;font-weight:700;margin-bottom:10px}
+</style>
+
+<div class="flow">
+
+  <div class="dm">
+    <div class="cap">Paso 1 de 2</div>
+    <h4 class="t">Reserva tu cita</h4>
+    <div class="s">Elige el servicio y un horario libre.</div>
+    <div class="svc"><span>Consulta inicial · 30 min</span><b>$ 40.000</b></div>
+    <div class="svc on"><span>Sesión estándar · 60 min</span><b>$ 80.000</b></div>
+    <div class="svc"><span>Sesión extendida · 90 min</span><b>$ 110.000</b></div>
+    <div class="day"><span>‹</span>Martes 10 de noviembre<span>›</span></div>
+    <div class="rule">
+      <span class="tick" style="top:-6px">9:00</span>
+      <span class="tick" style="top:44px">10:00</span>
+      <span class="tick" style="top:94px">11:00</span>
+      <span class="tick" style="top:144px">12:00</span>
+      <span class="tick" style="top:194px">13:00</span>
+      <div class="busy" style="top:0;height:44px">Ocupado</div>
+      <div class="pick" style="top:50px;height:44px">10:00 – 11:00</div>
+      <div class="busy" style="top:100px;height:22px">Ocupado</div>
+    </div>
+    <div class="btn">Continuar</div>
+  </div>
+
+  <div class="dm">
+    <div class="cap">Paso 2 de 2</div>
+    <h4 class="t">Tus datos</h4>
+    <div class="s">Sin crear cuenta.</div>
+    <div class="sum">Sesión estándar · 60 min<small>Martes 10 de noviembre, 10:00 – 11:00 · $ 80.000</small></div>
+    <div class="two">
+      <div><label>Nombre</label><div class="in">Camila</div></div>
+      <div><label>Apellido</label><div class="in">Rojas</div></div>
+    </div>
+    <label>Teléfono</label><div class="in">300 123 4567</div>
+    <label>Correo</label><div class="in">camila@correo.com</div>
+    <div class="btn">Solicitar cita</div>
+    <div class="s" style="margin-top:10px;text-align:center">‹ Cambiar horario</div>
+  </div>
+
+  <div class="dm">
+    <div class="cap">Listo</div>
+    <h4 class="t">Cita confirmada</h4>
+    <div class="s">Guarda estos datos por si necesitas consultarla.</div>
+    <div class="state">Confirmada</div>
+    <div class="sum">Sesión estándar · 60 min<small>Martes 10 de noviembre, 10:00 – 11:00 · $ 80.000</small></div>
+    <div class="s">A nombre de Camila Rojas<br>300 123 4567 · camila@correo.com</div>
+    <div class="btn off">Reservar otra cita</div>
+  </div>
+
+</div>

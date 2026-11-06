@@ -1,0 +1,145 @@
+<h2>Panel del dueño (primera idea)</h2>
+<p class="subtitle">Basado en el dashboard de demo-taller (indicadores arriba, alertas, gráficas y tablas) pero con la regla de tiempo. Las cifras y las alertas son mías, de ejemplo: dime qué sobra y qué falta.</p>
+
+<style>
+  .app{font-family:"Segoe UI",system-ui,sans-serif;font-size:13px;line-height:1.35;display:grid;grid-template-columns:168px minmax(0,1fr);background:#E9EEF2;color:#101C33;border:1px solid #c9d2dc;min-height:640px}
+  .side{background:#101C33;color:#c9d2e6;padding:16px 10px;display:flex;flex-direction:column;gap:3px}
+  .side .brand{font-weight:800;font-size:17px;letter-spacing:-.02em;color:#fff;padding:2px 8px 14px}
+  .side .n{padding:8px 10px;border-radius:3px}
+  .side .n.on{background:#E9EEF2;color:#101C33;font-weight:700}
+  .side .n em{font-style:normal;background:#2B50E6;color:#fff;border-radius:3px;padding:0 6px;margin-left:6px;font-size:11px}
+  .main{padding:16px 20px 22px;min-width:0}
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .top h4{margin:0;font-size:22px;letter-spacing:-.02em}
+  .top .who{display:flex;gap:10px;align-items:center;color:#51607a}
+  .bell{position:relative;border:1.5px solid #101C33;padding:2px 8px;background:#fff;color:#101C33}
+  .bell u{position:absolute;top:-4px;right:-4px;background:#2B50E6;color:#fff;font-size:10px;text-decoration:none;border-radius:8px;padding:0 5px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px}
+  .kpi{background:#fff;border:1.5px solid #101C33;padding:9px 10px}
+  .kpi span{display:block;color:#51607a;font-size:11px}
+  .kpi b{display:block;font-size:22px;letter-spacing:-.02em;margin:2px 0}
+  .kpi em{font-style:normal;font-size:11px;color:#51607a}
+  .kpi em.ok{color:#1c7a47}.kpi em.mal{color:#c0392b}
+  .grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:10px}
+  .blk{background:#fff;border:1.5px solid #101C33;padding:10px 12px;min-width:0}
+  .blk h5{margin:0 0 8px;font-size:12px;color:#51607a;font-weight:700}
+  .wide{grid-column:1/-1}
+  .al{display:flex;gap:8px;padding:7px 8px;border-left:4px solid #2B50E6;background:#EEF2FD;margin-bottom:5px}
+  .al.w{border-color:#d68a00;background:#FFF5DF}.al.r{border-color:#c0392b;background:#FCEAE7}
+  .al small{display:block;color:#51607a}
+  /* agenda de hoy: una columna por servicio */
+  .cols{display:grid;grid-template-columns:34px repeat(3,minmax(0,1fr));gap:0;position:relative;height:230px}
+  .hrs{position:relative}
+  .hrs span{position:absolute;right:6px;font-size:10px;color:#51607a}
+  .col{position:relative;border-left:1px solid #c9d2dc}
+  .col .h{position:absolute;top:-18px;left:4px;font-size:11px;font-weight:700;white-space:nowrap}
+  .ev{position:absolute;left:3px;right:3px;background:#2B50E6;color:#fff;padding:3px 5px;font-size:10px;overflow:hidden}
+  .ev.done{background:#8f9bb0}
+  .ev.now{outline:2px solid #101C33;outline-offset:1px}
+  .off{position:absolute;left:0;right:0;background:repeating-linear-gradient(135deg,#dfe5ec 0 4px,#fff 4px 8px)}
+  .nowline{position:absolute;left:34px;right:0;border-top:2px solid #c0392b}
+  .bars{display:flex;align-items:flex-end;gap:3px;height:96px;border-bottom:2px solid #101C33}
+  .bars i{flex:1;background:#2B50E6;display:block}
+  .bars i.lo{background:#9fb0f0}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:left;color:#51607a;font-weight:600;border-bottom:1.5px solid #101C33;padding:4px 6px}
+  td{padding:6px;border-bottom:1px solid #dfe5ec}
+  .chip{border:1.5px solid #101C33;padding:0 6px;font-size:11px;font-weight:600}
+  .chip.c{border-color:#c0392b;color:#c0392b}
+  .btn{border:1.5px solid #101C33;padding:1px 8px;background:#fff;font-size:11px}
+  .bar{display:grid;grid-template-columns:110px 1fr 34px;gap:8px;align-items:center;margin-bottom:6px}
+  .bar i{height:10px;background:#dfe5ec;display:block}.bar u{display:block;height:10px;background:#2B50E6}
+</style>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">DateManager</div>
+    <div class="n on">Panel</div>
+    <div class="n">Agenda</div>
+    <div class="n">Citas<em>2</em></div>
+    <div class="n">Servicios</div>
+    <div class="n">Clientes</div>
+    <div class="n">Usuarios y roles</div>
+  </aside>
+
+  <div class="main">
+    <div class="top">
+      <h4>Hola, Marta. Así va el día</h4>
+      <div class="who"><span class="bell">Alertas<u>3</u></span><span>Marta Ríos · Admin</span></div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><span>Citas hoy</span><b>9</b><em>3 ya atendidas</em></div>
+      <div class="kpi"><span>Próxima cita</span><b>11:00</b><em>en 25 min · Sesión estándar</em></div>
+      <div class="kpi"><span>Ocupación de hoy</span><b>68%</b><em class="ok">▲ 8% vs. martes pasado</em></div>
+      <div class="kpi"><span>Citas nuevas (30 días)</span><b>142</b><em class="ok">▲ 12% vs. 30 días antes</em></div>
+      <div class="kpi"><span>Canceladas (30 días)</span><b>11</b><em class="mal">▲ 3 más que antes</em></div>
+      <div class="kpi"><span>Ingresos estimados</span><b>$ 9,8 M</b><em>suma de citas no canceladas</em></div>
+    </div>
+
+    <div class="grid">
+      <div class="blk">
+        <h5>Agenda de hoy: una columna por servicio</h5>
+        <div class="cols" style="margin-top:20px">
+          <div class="hrs">
+            <span style="top:-6px">9:00</span><span style="top:44px">10:00</span><span style="top:94px">11:00</span><span style="top:144px">12:00</span><span style="top:194px">13:00</span>
+          </div>
+          <div class="col"><span class="h">Consulta inicial</span>
+            <div class="off" style="top:0;height:0"></div>
+            <div class="ev done" style="top:0;height:22px">Ana P. · 9:00</div>
+            <div class="ev done" style="top:50px;height:22px">Luis M. · 10:00</div>
+            <div class="ev" style="top:100px;height:22px">Sofía R. · 11:00</div>
+            <div class="ev" style="top:150px;height:22px">Pedro G. · 12:00</div>
+          </div>
+          <div class="col"><span class="h">Sesión estándar</span>
+            <div class="ev done" style="top:0;height:44px">Camila R. · 9:00</div>
+            <div class="ev now" style="top:100px;height:44px">Jorge T. · 11:00</div>
+            <div class="off" style="top:150px;height:44px"></div>
+          </div>
+          <div class="col"><span class="h">Sesión extendida</span>
+            <div class="off" style="top:0;height:94px"></div>
+            <div class="ev" style="top:100px;height:66px">Valeria S. · 11:00</div>
+          </div>
+          <div class="nowline" style="top:78px"></div>
+        </div>
+        <p style="margin:10px 0 0;color:#51607a;font-size:11px">Gris = ya atendida · rayado = fuera del horario del servicio · línea roja = ahora.</p>
+      </div>
+
+      <div class="blk">
+        <h5>Alertas</h5>
+        <div class="al"><div><b>Cita nueva</b><small>Sofía R. reservó Consulta inicial, hoy 11:00</small></div></div>
+        <div class="al r"><div><b>Cita cancelada</b><small>Pedro G. canceló el jueves 12, 15:00</small></div></div>
+        <div class="al w"><div><b>Servicio sin horario</b><small>«Sesión extendida» no tiene disponibilidad el sábado y no se puede reservar ese día</small></div></div>
+      </div>
+
+      <div class="blk">
+        <h5>Citas por día, últimos 30 días</h5>
+        <div class="bars">
+          <i style="height:50%"></i><i style="height:62%"></i><i style="height:58%"></i><i style="height:70%"></i><i style="height:66%"></i><i class="lo" style="height:30%"></i><i class="lo" style="height:18%"></i>
+          <i style="height:55%"></i><i style="height:68%"></i><i style="height:74%"></i><i style="height:72%"></i><i style="height:80%"></i><i class="lo" style="height:34%"></i><i class="lo" style="height:20%"></i>
+          <i style="height:60%"></i><i style="height:70%"></i><i style="height:78%"></i><i style="height:76%"></i><i style="height:88%"></i><i class="lo" style="height:40%"></i><i class="lo" style="height:22%"></i>
+          <i style="height:64%"></i><i style="height:72%"></i><i style="height:84%"></i><i style="height:82%"></i><i style="height:94%"></i><i class="lo" style="height:44%"></i>
+        </div>
+      </div>
+
+      <div class="blk">
+        <h5>Ocupación por servicio (esta semana)</h5>
+        <div class="bar"><span>Consulta inicial</span><i><u style="width:82%"></u></i><b>82%</b></div>
+        <div class="bar"><span>Sesión estándar</span><i><u style="width:71%"></u></i><b>71%</b></div>
+        <div class="bar"><span>Sesión extendida</span><i><u style="width:38%"></u></i><b>38%</b></div>
+      </div>
+
+      <div class="blk wide">
+        <h5>Próximas citas</h5>
+        <table>
+          <thead><tr><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Teléfono</th><th>Estado</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>11:00</td><td>Jorge Torres</td><td>Sesión estándar</td><td>300 555 0101</td><td><span class="chip">Confirmada</span></td><td><span class="btn">Abrir</span></td></tr>
+            <tr><td>11:00</td><td>Valeria Soto</td><td>Sesión extendida</td><td>311 555 0142</td><td><span class="chip">Confirmada</span></td><td><span class="btn">Abrir</span></td></tr>
+            <tr><td>12:00</td><td>Pedro Gómez</td><td>Consulta inicial</td><td>320 555 0187</td><td><span class="chip c">Cancelada</span></td><td><span class="btn">Abrir</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
