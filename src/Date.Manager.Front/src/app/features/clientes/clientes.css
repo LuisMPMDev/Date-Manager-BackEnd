@@ -1,0 +1,111 @@
+h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.busqueda {
+  max-width: 380px;
+  margin-bottom: 8px;
+}
+
+.campo {
+  min-width: 0;
+}
+
+label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--apoyo);
+}
+
+input[type='text'],
+input[type='tel'],
+input[type='email'] {
+  width: 100%;
+  padding: 7px 8px;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+.aviso-ok {
+  margin: 0;
+  min-height: 1.4em;
+  font-weight: 600;
+}
+
+.formulario {
+  margin-bottom: 14px;
+  padding: 12px;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+.campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 10px;
+}
+
+.alerta {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-left: 4px solid var(--rojo);
+  background: var(--fondo);
+  font-weight: 600;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tabla-scroll {
+  overflow-x: auto;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  text-align: left;
+  color: var(--apoyo);
+  font-weight: 600;
+  border-bottom: var(--borde);
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rayado);
+  vertical-align: top;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.vacio td {
+  padding: 16px 10px;
+  color: var(--apoyo);
+  text-align: center;
+}
+
+td .btn {
+  padding: 3px 10px;
+  font-size: 12px;
+}

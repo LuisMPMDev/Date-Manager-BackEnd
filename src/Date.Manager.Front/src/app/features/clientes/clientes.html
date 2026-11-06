@@ -1,0 +1,78 @@
+<h2 tabindex="-1">Clientes</h2>
+
+<div class="busqueda campo">
+  <label for="buscar">Buscar por nombre, correo o teléfono</label>
+  <input id="buscar" name="buscar" type="text" autocomplete="off" [value]="consulta()" (input)="buscar($event)" />
+</div>
+
+<p class="aviso-ok" role="status">{{ aviso() }}</p>
+
+@if (borrador(); as b) {
+  <form class="formulario" (submit)="guardar($event)" novalidate>
+    <h3 tabindex="-1">Editar cliente</h3>
+
+    <div class="campos">
+      <div class="campo">
+        <label for="campo-nombre">Nombre</label>
+        <input id="campo-nombre" name="nombre" type="text" autocomplete="off" [value]="b.nombre" (input)="escribir('nombre', $event)" />
+      </div>
+      <div class="campo">
+        <label for="campo-apellido">Apellido</label>
+        <input id="campo-apellido" name="apellido" type="text" autocomplete="off" [value]="b.apellido" (input)="escribir('apellido', $event)" />
+      </div>
+      <div class="campo">
+        <label for="campo-telefono">Teléfono</label>
+        <input id="campo-telefono" name="telefono" type="tel" autocomplete="off" [value]="b.telefono" (input)="escribir('telefono', $event)" />
+      </div>
+      <div class="campo">
+        <label for="campo-correo">Correo</label>
+        <input id="campo-correo" name="correo" type="email" autocomplete="off" [value]="b.correo" (input)="escribir('correo', $event)" />
+      </div>
+    </div>
+
+    @if (error()) {
+      <p class="alerta" role="alert">{{ error() }}</p>
+    }
+
+    <div class="acciones">
+      <button type="submit" class="btn primario" [disabled]="guardando()">Guardar cliente</button>
+      <button type="button" class="btn" (click)="cancelar()">Cancelar</button>
+    </div>
+  </form>
+} @else if (error()) {
+  <p class="alerta" role="alert">{{ error() }}</p>
+}
+
+<div class="tabla-scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Apellido</th>
+        <th>Teléfono</th>
+        <th>Correo</th>
+        <th>Citas</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (f of filas(); track f.cliente.id) {
+        <tr [attr.data-cliente]="f.cliente.id">
+          <td>{{ f.cliente.nombre }}</td>
+          <td>{{ f.cliente.apellido }}</td>
+          <td class="nowrap">{{ f.cliente.telefono }}</td>
+          <td>{{ f.cliente.correo }}</td>
+          <td>{{ f.citas }}</td>
+          <td class="nowrap">
+            <button type="button" class="btn" (click)="editar(f.cliente)"
+                    [attr.aria-label]="'Editar a ' + f.cliente.nombre + ' ' + f.cliente.apellido">Editar</button>
+          </td>
+        </tr>
+      } @empty {
+        <tr class="vacio">
+          <td colspan="6">{{ hayClientes() ? 'No hay clientes con esa búsqueda.' : 'Todavía no hay clientes: se crean cuando alguien reserva una cita.' }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>
