@@ -5,18 +5,34 @@ import { puede } from './permisos';
 
 const CLAVE_SESION = 'datemanager.sesion.v1';
 
+function tieneForma(valor: unknown): valor is Usuario {
+  if (typeof valor !== 'object' || valor === null || Array.isArray(valor)) return false;
+  const u = valor as Record<string, unknown>;
+  return typeof u['id'] === 'string' && typeof u['rolId'] === 'string';
+}
+
+/** Devuelve la sesión guardada si tiene la forma esperada; si no, la descarta. */
 function leerGuardado(): Usuario | null {
   try {
     const crudo = sessionStorage.getItem(CLAVE_SESION);
-    return crudo ? (JSON.parse(crudo) as Usuario) : null;
+    if (!crudo) return null;
+    const valor: unknown = JSON.parse(crudo);
+    if (tieneForma(valor)) return valor;
+    sessionStorage.removeItem(CLAVE_SESION);
   } catch {
-    return null;
+    try {
+      sessionStorage.removeItem(CLAVE_SESION);
+    } catch {
+      // sin almacenamiento disponible
+    }
   }
+  return null;
 }
 
 function escribirGuardado(usuario: Usuario | null): void {
   try {
-    if (usuario) sessionStorage.setItem(CLAVE_SESION, JSON.stringify(usuario));
+    // la clave nunca se guarda en el navegador
+    if (usuario) sessionStorage.setItem(CLAVE_SESION, JSON.stringify({ ...usuario, clave: '' }));
     else sessionStorage.removeItem(CLAVE_SESION);
   } catch {
     // sin almacenamiento disponible: la sesión vive solo en memoria
@@ -54,6 +70,25 @@ export class SesionService {
     this.roles.set(roles);
     this.usuario.set(u);
     escribirGuardado(u);
+  }
+
+  /**
+   * Vuelve a leer roles y usuarios: si el rol o el usuario de la sesión cambiaron,
+   * el menú y los permisos se actualizan al instante. Si el usuario ya no existe, cierra la sesión.
+   */
+  async refrescar(): Promise<void> {
+    const actual = this.usuario();
+    if (!actual) return;
+    const [roles, usuarios] = await Promise.all([this.repo.roles(), this.repo.usuarios()]);
+    if (this.usuario()?.id !== actual.id) return; // la sesión cambió mientras esperábamos
+    const vigente = usuarios.find(u => u.id === actual.id);
+    if (!vigente) {
+      this.cerrar();
+      return;
+    }
+    this.roles.set(roles);
+    this.usuario.set(vigente);
+    escribirGuardado(vigente);
   }
 
   cerrar(): void {
