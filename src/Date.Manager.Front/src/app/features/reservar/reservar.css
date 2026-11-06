@@ -1,0 +1,160 @@
+.reserva {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+}
+
+.marca {
+  margin: 0 0 12px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--cobalto);
+}
+
+.paso {
+  margin: 0 0 4px;
+  font-size: 11px;
+  color: var(--apoyo);
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+
+.subtitulo,
+.aviso {
+  margin: 0 0 12px;
+  color: var(--apoyo);
+}
+
+.alerta {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-left: 4px solid var(--ambar);
+  background: var(--blanco);
+  font-weight: 600;
+}
+
+.servicios {
+  display: grid;
+  gap: 6px;
+}
+
+.servicio {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: var(--borde);
+  background: var(--blanco);
+  text-align: left;
+}
+
+.servicio[aria-pressed='true'] {
+  background: var(--tinta);
+  color: var(--blanco);
+}
+
+.dia {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 16px 0 8px;
+  font-weight: 700;
+}
+
+.flecha {
+  min-width: 44px;
+  min-height: 36px;
+  border: var(--borde);
+  background: var(--blanco);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.ancho {
+  width: 100%;
+  margin-top: 14px;
+  padding: 11px;
+  text-align: center;
+}
+
+.resumen {
+  margin-bottom: 14px;
+  padding: 10px;
+  background: var(--cobalto);
+  color: var(--blanco);
+}
+
+.resumen small {
+  display: block;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.campos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
+}
+
+.campo {
+  min-width: 0;
+}
+
+.campo.completo {
+  grid-column: 1 / -1;
+}
+
+label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--apoyo);
+}
+
+input {
+  width: 100%;
+  padding: 8px;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+input[aria-invalid='true'] {
+  border-color: var(--rojo);
+}
+
+.campo-error {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rojo);
+}
+
+.btn-enlace {
+  display: block;
+  margin: 12px auto 0;
+  padding: 6px;
+  border: 0;
+  background: none;
+  color: var(--apoyo);
+  font-weight: 600;
+}
+
+.estado {
+  display: inline-block;
+  margin: 0 0 10px;
+  padding: 2px 8px;
+  border: 1.5px dashed var(--tinta);
+  font-weight: 700;
+}
+
+.acceso {
+  display: block;
+  margin-top: 28px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--apoyo);
+}

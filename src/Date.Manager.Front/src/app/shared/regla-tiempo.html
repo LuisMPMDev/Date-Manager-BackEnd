@@ -1,0 +1,27 @@
+<div class="regla" [class.con-huecos]="huecos().length > 0" [style.height.px]="alto()">
+  @for (m of marcas(); track m) {
+    <span class="marca" [style.top.px]="(m - desdeMin()) * px">{{ hhmm(m) }}</span>
+  }
+
+  @for (b of bloques(); track $index) {
+    <div data-testid="bloque" [class]="clases(b)"
+         [style.top.px]="(b.desdeMin - desdeMin()) * px"
+         [style.height.px]="(b.hastaMin - b.desdeMin) * px">
+      @if (b.etiqueta) {
+        <span class="etiqueta">{{ b.etiqueta }}</span>
+      }
+    </div>
+  }
+
+  @for (h of huecos(); track h.desdeMin) {
+    <button type="button" class="hueco" data-testid="hueco"
+            [attr.aria-pressed]="esElegido(h)"
+            [style.top.px]="(h.desdeMin - desdeMin()) * px"
+            [style.height.px]="(h.hastaMin - h.desdeMin) * px"
+            (click)="elegir.emit(h.desdeMin)">{{ h.etiqueta }}</button>
+  }
+
+  @if (lineaAhora() !== null) {
+    <div class="ahora" [style.top.px]="lineaAhora()"></div>
+  }
+</div>

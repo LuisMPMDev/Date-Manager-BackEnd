@@ -1,0 +1,84 @@
+:host {
+  display: block;
+  padding: 10px 0;
+}
+
+.regla {
+  position: relative;
+  margin-left: 48px;
+  border-left: 2px solid var(--tinta);
+}
+
+.marca {
+  position: absolute;
+  left: -50px;
+  width: 42px;
+  transform: translateY(-50%);
+  text-align: right;
+  font-size: 11px;
+  color: var(--apoyo);
+}
+
+.bloque {
+  position: absolute;
+  left: 8px;
+  right: 0;
+  overflow: hidden;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--apoyo);
+}
+
+.con-huecos .bloque {
+  left: 92px;
+}
+
+.rayado {
+  background: repeating-linear-gradient(135deg, var(--rayado) 0 4px, var(--fondo) 4px 8px);
+}
+
+.elegido {
+  background: var(--cobalto);
+  color: var(--blanco);
+  font-weight: 600;
+  padding-top: 8px;
+}
+
+.cita {
+  background: var(--blanco);
+  border: var(--borde);
+  color: var(--tinta);
+}
+
+.atendida {
+  background: var(--rayado);
+}
+
+.hueco {
+  position: absolute;
+  left: 8px;
+  width: 76px;
+  padding: 0;
+  border: var(--borde);
+  border-top-width: 0.75px;
+  border-bottom-width: 0.75px;
+  background: var(--blanco);
+  font-weight: 600;
+}
+
+.hueco:hover {
+  background: var(--fondo);
+}
+
+.hueco[aria-pressed='true'] {
+  background: var(--tinta);
+  color: var(--blanco);
+}
+
+.ahora {
+  position: absolute;
+  left: -6px;
+  right: 0;
+  border-top: 2px solid var(--rojo);
+  pointer-events: none;
+}
