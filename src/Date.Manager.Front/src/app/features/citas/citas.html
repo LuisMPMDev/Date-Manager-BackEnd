@@ -64,24 +64,26 @@
           <td class="nowrap">{{ f.cliente?.telefono }}</td>
           <td><span class="chip" [class.cancelada]="f.cita.estado === 'Cancelada'">{{ f.cita.estado }}</span></td>
           @if (mostrarAcciones()) {
-            <td class="acciones">
+            <td>
               @if (f.cita.estado === 'Confirmada') {
-                @if (confirmando() === f.cita.id) {
-                  <span class="pregunta">¿Cancelar esta cita?</span>
-                  <button type="button" class="btn peligro" (click)="cancelar(f.cita.id)">Sí, cancelar</button>
-                  <button type="button" class="btn" data-volver (click)="volver(f.cita.id)">No, volver</button>
-                } @else {
-                  @if (sesion.puede('gestionar_citas')) {
-                    <button type="button" class="btn" data-accion="mover" (click)="abrirMover(f.cita.id)"
-                            [attr.aria-label]="'Mover cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Mover cita</button>
-                    <button type="button" class="btn peligro" data-accion="cancelar" (click)="pedirCancelacion(f.cita.id)"
-                            [attr.aria-label]="'Cancelar cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Cancelar cita</button>
+                <div class="acciones">
+                  @if (confirmando() === f.cita.id) {
+                    <span class="pregunta">¿Cancelar esta cita?</span>
+                    <button type="button" class="btn peligro" (click)="cancelar(f.cita.id)">Sí, cancelar</button>
+                    <button type="button" class="btn" data-volver (click)="volver(f.cita.id)">No, volver</button>
+                  } @else {
+                    @if (sesion.puede('gestionar_citas')) {
+                      <button type="button" class="btn" data-accion="mover" (click)="abrirMover(f.cita.id)"
+                              [attr.aria-label]="'Mover cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Mover cita</button>
+                      <button type="button" class="btn peligro" data-accion="cancelar" (click)="pedirCancelacion(f.cita.id)"
+                              [attr.aria-label]="'Cancelar cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Cancelar cita</button>
+                    }
+                    @if (sesion.puede('atender_citas')) {
+                      <button type="button" class="btn" data-accion="atender" (click)="atender(f.cita.id)"
+                              [attr.aria-label]="'Marcar como atendida la cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Marcar como atendida</button>
+                    }
                   }
-                  @if (sesion.puede('atender_citas')) {
-                    <button type="button" class="btn" data-accion="atender" (click)="atender(f.cita.id)"
-                            [attr.aria-label]="'Marcar como atendida la cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Marcar como atendida</button>
-                  }
-                }
+                </div>
               }
             </td>
           }
