@@ -1,0 +1,96 @@
+<h2 tabindex="-1">Citas</h2>
+
+<div class="filtros">
+  <div class="campo">
+    <label for="filtro-fecha">Fecha</label>
+    <input id="filtro-fecha" name="fecha" type="date" [value]="filtros().fecha" (input)="filtrar('fecha', $event)" />
+  </div>
+  <div class="campo">
+    <label for="filtro-servicio">Servicio</label>
+    <select id="filtro-servicio" name="servicio" (change)="filtrar('servicioId', $event)">
+      <option value="">Todos</option>
+      @for (s of servicios(); track s.id) {
+        <option [value]="s.id" [selected]="s.id === filtros().servicioId">{{ s.nombre }}</option>
+      }
+    </select>
+  </div>
+  <div class="campo">
+    <label for="filtro-estado">Estado</label>
+    <select id="filtro-estado" name="estado" (change)="filtrar('estado', $event)">
+      <option value="">Todos</option>
+      @for (e of estados; track e) {
+        <option [value]="e" [selected]="e === filtros().estado">{{ e }}</option>
+      }
+    </select>
+  </div>
+  <label class="anteriores">
+    <input name="anteriores" type="checkbox" [checked]="filtros().anteriores" (change)="alternarAnteriores($event)" />
+    Mostrar anteriores
+  </label>
+</div>
+
+<p class="aviso-ok" role="status">{{ aviso() }}</p>
+@if (error()) {
+  <p class="alerta" role="alert">{{ error() }}</p>
+}
+
+@if (citaMoviendo(); as m) {
+  <app-mover-cita [cita]="m.cita" [servicio]="m.servicio" [cliente]="nombreCompleto(m.cliente)"
+                  (movida)="movida($event)" (cerrar)="cerrarMover()" />
+}
+
+<div class="tabla-scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Hora</th>
+        <th>Servicio</th>
+        <th>Cliente</th>
+        <th>Teléfono</th>
+        <th>Estado</th>
+        @if (mostrarAcciones()) {
+          <th>Acciones</th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (f of filas(); track f.cita.id) {
+        <tr [attr.data-cita]="f.cita.id" tabindex="-1">
+          <td class="nowrap">{{ fechaLarga(f.cita.fecha) }}</td>
+          <td class="nowrap">{{ f.cita.inicio }}–{{ f.cita.fin }}</td>
+          <td>{{ f.servicio?.nombre }}</td>
+          <td>{{ nombreCompleto(f.cliente) }}</td>
+          <td class="nowrap">{{ f.cliente?.telefono }}</td>
+          <td><span class="chip" [class.cancelada]="f.cita.estado === 'Cancelada'">{{ f.cita.estado }}</span></td>
+          @if (mostrarAcciones()) {
+            <td class="acciones">
+              @if (f.cita.estado === 'Confirmada') {
+                @if (confirmando() === f.cita.id) {
+                  <span class="pregunta">¿Cancelar esta cita?</span>
+                  <button type="button" class="btn peligro" (click)="cancelar(f.cita.id)">Sí, cancelar</button>
+                  <button type="button" class="btn" data-volver (click)="volver(f.cita.id)">No, volver</button>
+                } @else {
+                  @if (sesion.puede('gestionar_citas')) {
+                    <button type="button" class="btn" data-accion="mover" (click)="abrirMover(f.cita.id)"
+                            [attr.aria-label]="'Mover cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Mover cita</button>
+                    <button type="button" class="btn peligro" data-accion="cancelar" (click)="pedirCancelacion(f.cita.id)"
+                            [attr.aria-label]="'Cancelar cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Cancelar cita</button>
+                  }
+                  @if (sesion.puede('atender_citas')) {
+                    <button type="button" class="btn" data-accion="atender" (click)="atender(f.cita.id)"
+                            [attr.aria-label]="'Marcar como atendida la cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Marcar como atendida</button>
+                  }
+                }
+              }
+            </td>
+          }
+        </tr>
+      } @empty {
+        <tr class="vacio">
+          <td [attr.colspan]="mostrarAcciones() ? 7 : 6">No hay citas con estos filtros.</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

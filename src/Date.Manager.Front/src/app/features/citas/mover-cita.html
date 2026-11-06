@@ -1,0 +1,38 @@
+<section class="mover" role="dialog" aria-labelledby="mover-titulo" (keydown.escape)="cerrar.emit()">
+  <h3 id="mover-titulo" tabindex="-1">Mover cita</h3>
+  <p class="resumen">
+    {{ cliente() }} · {{ servicio().nombre }} · {{ servicio().duracionMin }} min
+    <small>Ahora: {{ fechaLarga(cita().fecha) }}, {{ cita().inicio }} – {{ cita().fin }}</small>
+  </p>
+
+  @if (error()) {
+    <p class="alerta" role="alert">{{ error() }}</p>
+  }
+
+  <div class="dia">
+    <button type="button" class="btn flecha" aria-label="Día anterior"
+            [disabled]="fecha() <= hoy" (click)="cambiarDia(-1)">‹</button>
+    <span data-testid="dia" aria-live="polite" [attr.data-fecha]="fecha()">{{ fechaLarga(fecha()) }}</span>
+    <button type="button" class="btn flecha" aria-label="Día siguiente"
+            [disabled]="fecha() >= ultimoDia" (click)="cambiarDia(1)">›</button>
+  </div>
+
+  @if (regla(); as r) {
+    @if (!libres().length) {
+      <p class="aviso">No quedan horarios libres este día.</p>
+    }
+    <app-regla-tiempo [desdeMin]="r.desdeMin" [hastaMin]="r.hastaMin" [bloques]="r.bloques"
+                      [huecos]="r.huecos" [ahoraMin]="ahoraMin()" (elegir)="elegirHora($event)" />
+  } @else {
+    <p class="aviso">Este servicio no atiende este día.</p>
+  }
+
+  @if (elegido()) {
+    <p class="nuevo">Nuevo horario: {{ fechaLarga(fecha()) }}, {{ elegido() }} – {{ horaFin() }}</p>
+  }
+
+  <div class="acciones">
+    <button type="button" class="btn primario" [disabled]="!elegido() || moviendo()" (click)="mover()">Mover cita</button>
+    <button type="button" class="btn" (click)="cerrar.emit()">Cerrar</button>
+  </div>
+</section>

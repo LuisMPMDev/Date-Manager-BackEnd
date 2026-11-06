@@ -1,0 +1,127 @@
+h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.campo {
+  min-width: 150px;
+}
+
+label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--apoyo);
+}
+
+input[type='date'],
+select {
+  width: 100%;
+  padding: 7px 8px;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+.anteriores {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+  font-size: 13px;
+  color: var(--tinta);
+}
+
+.aviso-ok {
+  margin: 0;
+  min-height: 1.4em;
+  font-weight: 600;
+}
+
+.alerta {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-left: 4px solid var(--rojo);
+  background: var(--blanco);
+  font-weight: 600;
+}
+
+.tabla-scroll {
+  overflow-x: auto;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  text-align: left;
+  color: var(--apoyo);
+  font-weight: 600;
+  border-bottom: var(--borde);
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rayado);
+  vertical-align: top;
+}
+
+tr:focus-visible {
+  outline: 2px solid var(--tinta);
+  outline-offset: -2px;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.vacio td {
+  padding: 16px 10px;
+  color: var(--apoyo);
+  text-align: center;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0 6px;
+  border: var(--borde);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chip.cancelada {
+  border-color: var(--rojo);
+  color: var(--rojo);
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 280px;
+}
+
+.acciones .btn {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.pregunta {
+  font-weight: 600;
+}

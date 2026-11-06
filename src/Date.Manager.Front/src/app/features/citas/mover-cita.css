@@ -1,0 +1,70 @@
+:host {
+  display: block;
+}
+
+.mover {
+  width: min(100%, 520px);
+  margin-bottom: 14px;
+  padding: 12px;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.resumen {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  background: var(--cobalto);
+  color: var(--blanco);
+}
+
+.resumen small {
+  display: block;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.alerta {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-left: 4px solid var(--rojo);
+  background: var(--fondo);
+  font-weight: 600;
+}
+
+.dia {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 8px 0;
+  font-weight: 700;
+}
+
+.flecha {
+  min-width: 44px;
+  min-height: 36px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.aviso {
+  margin: 0 0 8px;
+  color: var(--apoyo);
+}
+
+.nuevo {
+  margin: 8px 0 0;
+  font-weight: 600;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
