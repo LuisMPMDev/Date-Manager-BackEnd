@@ -26,7 +26,7 @@ Las rutas usan hash (`#/...`) y `<base href="./">`, por lo que el build de `dist
 | `marta`  | `demo123` | Administrador | Todo                                     |
 | `andres` | `demo123` | Recepción     | Citas y clientes                         |
 
-La pantalla de inicio de sesión también tiene tarjetas para entrar con un clic. Son cuentas de mentira: no hay autenticación real.
+En `#/login` escribe el usuario y la clave y pulsa «Iniciar sesión». La pantalla también tiene tarjetas para entrar con un clic. Son cuentas de mentira: no hay autenticación real.
 
 ## Enlaces directos
 

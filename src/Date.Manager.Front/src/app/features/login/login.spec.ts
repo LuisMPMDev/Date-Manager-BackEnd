@@ -35,6 +35,13 @@ describe('LoginComponent', () => {
     input.dispatchEvent(new Event('input'));
   }
 
+  it('el título y el botón de envío dicen «Iniciar sesión»', () => {
+    const { el } = crear();
+    expect(el.querySelector('h1')!.textContent?.trim()).toBe('Iniciar sesión');
+    expect(el.querySelector('form button[type="submit"]')!.textContent?.trim()).toBe('Iniciar sesión');
+    expect(el.textContent).not.toContain('Entrar');
+  });
+
   it('credenciales incorrectas muestran «Usuario o clave incorrectos.»', async () => {
     const { fixture, el } = crear();
     escribir(el, 'input[name="usuario"]', 'marta');
