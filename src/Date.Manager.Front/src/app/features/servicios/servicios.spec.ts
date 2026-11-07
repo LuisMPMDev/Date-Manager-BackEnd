@@ -154,6 +154,31 @@ describe('ServiciosComponent', () => {
     expect((await repo().servicios()).find(s => s.id === 'srv-extendida')!.ventanas.length).toBe(3);
   });
 
+  it('dos ventanas que se cruzan el mismo día muestran el error y no se guardan', async () => {
+    const { fixture, el } = await crear();
+    boton(el, 'Nuevo servicio').click();
+    await esperar(fixture);
+    escribir(el, 'input[name="nombre"]', 'Cruzado');
+    boton(el, 'Agregar ventana').click();
+    boton(el, 'Agregar ventana').click();
+    await esperar(fixture);
+    escribir(el, 'input[name="inicio-1"]', '11:00'); // la primera queda Lunes 09:00–12:00
+    escribir(el, 'input[name="fin-1"]', '14:00');
+    boton(el, 'Guardar servicio').click();
+    await esperar(fixture);
+
+    expect(alerta(el)).toContain('Lunes');
+    expect(alerta(el)).toContain('se cruzan');
+    expect(el.querySelector('form')).not.toBeNull();
+    expect((await repo().servicios()).length).toBe(3);
+
+    escribir(el, 'input[name="inicio-1"]', '12:00'); // ahora se tocan: es válido
+    boton(el, 'Guardar servicio').click();
+    await esperar(fixture);
+    expect(el.querySelector('form')).toBeNull();
+    expect((await repo().servicios()).length).toBe(4);
+  });
+
   it('el selector de día usa nombres en español y guarda 1 a 7', async () => {
     const { fixture, el } = await crear();
     boton(el, 'Nuevo servicio').click();

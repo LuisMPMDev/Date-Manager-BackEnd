@@ -1,4 +1,5 @@
 import { Cita, Cliente } from '../../core/models';
+import { esCorreoValido } from '../../core/validaciones';
 
 /** Minúsculas, sin tildes y sin espacios sobrantes: para comparar texto escrito por personas. */
 export function normalizar(texto: string): string {
@@ -11,7 +12,6 @@ export function filtrarClientes(clientes: Cliente[], consulta: string): Cliente[
   return clientes.filter(c => normalizar(`${c.nombre} ${c.apellido} ${c.correo} ${c.telefono}`).includes(buscado));
 }
 
-const CORREO = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
 
 /** Mensaje de error en español si el cliente no se puede guardar; null si es válido. */
 export function validarCliente(c: Cliente, todos: Cliente[]): string | null {
@@ -20,7 +20,7 @@ export function validarCliente(c: Cliente, todos: Cliente[]): string | null {
   if (!c.telefono.trim()) return 'Escribe el teléfono.';
   const correo = c.correo.trim();
   if (!correo) return 'Escribe el correo.';
-  if (!CORREO.test(correo)) return 'Escribe un correo válido, por ejemplo nombre@correo.com.';
+  if (!esCorreoValido(correo)) return 'Escribe un correo válido, por ejemplo nombre@correo.com.';
   const repetido = todos.some(o => o.id !== c.id && o.correo.trim().toLowerCase() === correo.toLowerCase());
   return repetido ? 'Ya existe otro cliente con ese correo.' : null;
 }

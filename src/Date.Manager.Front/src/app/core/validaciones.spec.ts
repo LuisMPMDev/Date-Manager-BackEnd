@@ -1,5 +1,6 @@
 import { Servicio } from './models';
-import { validarServicio } from './validaciones';
+import { sembrar } from './seed';
+import { esCorreoValido, validarServicio } from './validaciones';
 
 const valido: Servicio = {
   id: 'srv-x', nombre: 'Masaje', duracionMin: 45, activo: true, valor: 50000,
@@ -52,8 +53,54 @@ describe('validarServicio', () => {
     expect(con('25:00', '26:00')).toBeTruthy();
   });
 
+  describe('ventanas solapadas', () => {
+    const con = (...tramos: [number, string, string][]) =>
+      validarServicio({
+        ...valido,
+        ventanas: tramos.map(([dia, inicio, fin], i) => ({ id: `v${i}`, dia: dia as 1, inicio, fin })),
+      });
+
+    it('rechaza dos ventanas que se cruzan el mismo día, nombrando el día y las horas', () => {
+      const mensaje = con([2, '09:00', '12:00'], [2, '11:00', '14:00']);
+      expect(mensaje).toContain('Martes');
+      expect(mensaje).toContain('09:00');
+      expect(mensaje).toContain('14:00');
+      expect(mensaje).toMatch(/se cruzan|solap/);
+    });
+
+    it('rechaza una ventana contenida dentro de otra, aunque estén en otro orden', () => {
+      expect(con([3, '10:00', '11:00'], [3, '08:00', '13:00'])).toBeTruthy();
+    });
+
+    it('rechaza ventanas idénticas repetidas', () => {
+      expect(con([1, '09:00', '12:00'], [1, '09:00', '12:00'])).toBeTruthy();
+    });
+
+    it('permite ventanas que se tocan (fin = inicio) o que están en días distintos', () => {
+      expect(con([2, '09:00', '12:00'], [2, '12:00', '15:00'])).toBeNull();
+      expect(con([2, '09:00', '12:00'], [3, '10:00', '13:00'])).toBeNull();
+      expect(con([2, '15:00', '18:00'], [2, '09:00', '13:00'])).toBeNull();
+    });
+
+    it('los datos de ejemplo pasan la validación', () => {
+      for (const s of sembrar(new Date(2026, 10, 9, 8, 0)).servicios) expect(validarServicio(s), s.nombre).toBeNull();
+    });
+  });
+
   it('el mensaje de una ventana inválida nombra su día', () => {
     const mensaje = validarServicio({ ...valido, ventanas: [{ id: 'v1', dia: 3, inicio: '10:00', fin: '09:00' }] });
     expect(mensaje).toContain('Miércoles');
+  });
+});
+
+describe('esCorreoValido', () => {
+  it('acepta direcciones normales, con espacios alrededor', () => {
+    for (const c of ['nombre@correo.com', 'a.b+c@sub.dominio.co', ' ana@correo.com ']) expect(esCorreoValido(c), c).toBe(true);
+  });
+
+  it('rechaza lo que no tiene forma de correo', () => {
+    for (const c of ['', 'sin-arroba', 'a@b', 'a@b.', 'a@.com', 'a@b..c', 'a b@c.com', 'a@@c.com', '@c.com']) {
+      expect(esCorreoValido(c), c).toBe(false);
+    }
   });
 });

@@ -1,8 +1,8 @@
 import { Permiso, Rol, Usuario } from '../../core/models';
 import { conDependencias } from '../../core/permisos';
+import { esCorreoValido } from '../../core/validaciones';
 import { normalizar } from '../clientes/clientes-logica';
 
-const CORREO = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
 
 export const MENSAJE_ULTIMO_GESTOR = 'Debe quedar al menos un usuario que pueda gestionar roles.';
 
@@ -17,7 +17,7 @@ export function validarUsuario(u: Usuario, todos: Usuario[], roles: Rol[], esNue
   if (!usuario) return 'Escribe el nombre de usuario.';
   const correo = u.correo.trim();
   if (!correo) return 'Escribe el correo.';
-  if (!CORREO.test(correo)) return 'Escribe un correo válido, por ejemplo nombre@correo.com.';
+  if (!esCorreoValido(correo)) return 'Escribe un correo válido, por ejemplo nombre@correo.com.';
   if (esNuevo && !u.clave) return 'Escribe la clave.';
   if (!roles.some(r => r.id === u.rolId)) return 'Elige un rol.';
   const repetido = todos.some(o => o.id !== u.id && o.usuario.trim().toLowerCase() === usuario.toLowerCase());

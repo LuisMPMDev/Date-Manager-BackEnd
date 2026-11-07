@@ -5,6 +5,7 @@ import { AhoraService } from '../../core/ahora';
 import { HorarioNoDisponibleError } from '../../core/errores';
 import { aHHmm, isoDia, MAX_DIAS_ANTICIPACION, sumarMinutos } from '../../core/horarios';
 import { Cita, Servicio } from '../../core/models';
+import { esCorreoValido } from '../../core/validaciones';
 import { aFechaISO, fechaLarga, moneda, sumarDias } from '../../shared/formato';
 import { construirRegla } from '../../shared/regla-bloques';
 import { ReglaTiempoComponent } from '../../shared/regla-tiempo';
@@ -18,8 +19,6 @@ const CAMPOS: { campo: Campo; etiqueta: string; tipo: string; auto: string; erro
   { campo: 'telefono', etiqueta: 'Teléfono', tipo: 'tel', auto: 'tel', error: 'Escribe tu teléfono.' },
   { campo: 'correo', etiqueta: 'Correo', tipo: 'email', auto: 'email', error: 'Escribe un correo válido.' },
 ];
-
-const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 @Component({
   selector: 'app-reservar',
@@ -80,7 +79,7 @@ export class ReservarComponent implements OnInit {
     const errores: Partial<Record<Campo, string>> = {};
     for (const c of CAMPOS) {
       const valor = d[c.campo].trim();
-      const valido = c.campo === 'correo' ? CORREO_VALIDO.test(valor) : valor.length > 0;
+      const valido = c.campo === 'correo' ? esCorreoValido(valor) : valor.length > 0;
       if (!valido) errores[c.campo] = c.error;
     }
     return errores;

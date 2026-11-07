@@ -155,6 +155,9 @@ describe('ReservarComponent', () => {
     await enviar(fixture, el);
     expect(el.querySelector('form')).not.toBeNull();
     expect(errorDe('correo')).toBe('Escribe un correo válido.');
+    escribir(el, 'correo', 'camila@correo..com'); // la misma regla que Clientes
+    await enviar(fixture, el);
+    expect(errorDe('correo')).toBe('Escribe un correo válido.');
     expect(errorDe('nombre')).toBeUndefined();
     expect((await TestBed.inject(AgendaRepo).citas()).some(c => c.fecha === '2026-11-09' && c.inicio === '08:00')).toBe(false);
   });
