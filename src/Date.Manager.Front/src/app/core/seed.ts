@@ -110,7 +110,7 @@ const PLAN: PlanCita[] = [
   { dia: -1, servicio: 0, hueco: 1, cliente: 2, estado: 'Atendida' },
   // Hoy
   // Se ubican respecto a la hora actual: una ya atendida (si hoy ya pasó algún horario) y otra por venir.
-  { dia: 0, servicio: 1, hueco: 0, cliente: 4, estado: 'Atendida', momento: 'pasada' },
+  { dia: 0, servicio: 1, hueco: 2, cliente: 4, estado: 'Atendida', momento: 'pasada' },
   { dia: 0, servicio: 0, hueco: 1, cliente: 3, estado: 'Confirmada', momento: 'proxima' },
   // Próximos diez días
   { dia: 1, servicio: 0, hueco: 0, cliente: 5, estado: 'Confirmada' },

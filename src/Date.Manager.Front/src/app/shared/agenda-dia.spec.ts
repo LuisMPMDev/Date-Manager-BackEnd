@@ -89,8 +89,8 @@ describe('AgendaDiaComponent', () => {
   });
 
   it('una cita cuya hora de fin ya pasó se dibuja en gris', async () => {
+    const confirmadas = (await citasDe(LUNES)).filter(c => c.estado === 'Confirmada'); // sembradas a las 08:00
     ahora = new Date(2026, 10, 9, 18, 0); // pasó todo el horario de hoy
-    const confirmadas = (await citasDe(LUNES)).filter(c => c.estado === 'Confirmada');
     const { el } = await crear(LUNES);
     expect(bloques(el, 'cita').length).toBe(0);
     expect(bloques(el, 'atendida').length).toBe(confirmadas.length);
