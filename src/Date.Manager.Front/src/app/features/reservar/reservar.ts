@@ -1,7 +1,8 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AgendaRepo } from '../../core/agenda-repo';
-import { HorarioNoDisponibleError, RELOJ } from '../../core/errores';
+import { AhoraService } from '../../core/ahora';
+import { HorarioNoDisponibleError } from '../../core/errores';
 import { aHHmm, isoDia, MAX_DIAS_ANTICIPACION, sumarMinutos } from '../../core/horarios';
 import { Cita, Servicio } from '../../core/models';
 import { aFechaISO, fechaLarga, moneda, sumarDias } from '../../shared/formato';
@@ -29,7 +30,7 @@ const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 })
 export class ReservarComponent implements OnInit {
   private readonly repo = inject(AgendaRepo);
-  private readonly reloj = inject(RELOJ);
+  private readonly ahora = inject(AhoraService).ahora;
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
@@ -40,7 +41,7 @@ export class ReservarComponent implements OnInit {
   protected readonly paso = signal<Paso>(1);
   protected readonly servicios = signal<Servicio[]>([]);
   protected readonly servicioId = signal<string | null>(null);
-  protected readonly hoy = signal(aFechaISO(this.reloj()));
+  protected readonly hoy = computed(() => aFechaISO(this.ahora()));
   protected readonly fecha = signal(this.hoy());
   protected readonly libres = signal<string[]>([]);
   protected readonly elegido = signal<string | null>(null);
@@ -70,7 +71,7 @@ export class ReservarComponent implements OnInit {
 
   protected readonly ahoraMin = computed(() => {
     if (this.fecha() !== this.hoy()) return null;
-    const ahora = this.reloj();
+    const ahora = this.ahora();
     return ahora.getHours() * 60 + ahora.getMinutes();
   });
 

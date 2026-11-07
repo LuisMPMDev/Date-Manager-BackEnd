@@ -131,6 +131,27 @@ describe('PanelComponent', () => {
       expect(estado).toBe('Confirmada');
     });
 
+    it('se actualiza con el paso del tiempo sin recargar', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      try {
+        const { fixture, el } = await crear();
+        const citas = await repo().citas();
+        const antes = proximasCitas(citas, AHORA, 5).map(c => c.id);
+        expect(filasProximas(el).map(f => f.dataset['cita'])).toEqual(antes);
+
+        const tarde = new Date(2026, 10, 9, 23, 0); // ya pasaron las citas de hoy
+        fijarReloj(tarde);
+        const despues = proximasCitas(citas, tarde, 5).map(c => c.id);
+        expect(despues).not.toEqual(antes);
+
+        vi.advanceTimersByTime(60_000);
+        await esperar(fixture);
+        expect(filasProximas(el).map(f => f.dataset['cita'])).toEqual(despues);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('muestra la fecha junto a la hora cuando la cita no es de hoy', async () => {
       const { el } = await crear();
       const citas = await repo().citas();

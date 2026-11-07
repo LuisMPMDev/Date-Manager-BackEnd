@@ -96,6 +96,27 @@ describe('AgendaDiaComponent', () => {
     expect(bloques(el, 'atendida').length).toBe(confirmadas.length);
   });
 
+  it('la línea de «ahora» y lo que ya pasó se actualizan con el reloj, sin recargar', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      const { fixture, el } = await crear(LUNES);
+      const linea = () => (el.querySelector('.ahora') as HTMLElement).style.top;
+      const antes = linea();
+      const citasAntes = bloques(el, 'cita').length;
+      expect(citasAntes).toBeGreaterThan(0);
+
+      ahora = new Date(2026, 10, 9, 18, 0);
+      vi.advanceTimersByTime(60_000);
+      await esperar(fixture);
+
+      expect(linea()).not.toBe(antes);
+      expect(bloques(el, 'cita').length).toBe(0);
+      expect(bloques(el, 'atendida').length).toBe(citasAntes);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('los días pasados se dibujan en gris', async () => {
     const pasada = (await repo().citas()).find(c => c.fecha < LUNES && c.estado === 'Atendida')!;
     const { el } = await crear(pasada.fecha);

@@ -1,6 +1,7 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, input, OnInit, output, signal } from '@angular/core';
 import { AgendaRepo } from '../../core/agenda-repo';
-import { HorarioNoDisponibleError, RELOJ } from '../../core/errores';
+import { AhoraService } from '../../core/ahora';
+import { HorarioNoDisponibleError } from '../../core/errores';
 import { aHHmm, isoDia, MAX_DIAS_ANTICIPACION, sumarMinutos } from '../../core/horarios';
 import { Cita, Servicio } from '../../core/models';
 import { aFechaISO, fechaLarga, sumarDias } from '../../shared/formato';
@@ -20,7 +21,7 @@ import { ReglaTiempoComponent } from '../../shared/regla-tiempo';
 })
 export class MoverCitaComponent implements OnInit {
   private readonly repo = inject(AgendaRepo);
-  private readonly reloj = inject(RELOJ);
+  private readonly ahora = inject(AhoraService).ahora;
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
@@ -31,7 +32,7 @@ export class MoverCitaComponent implements OnInit {
   readonly cerrar = output<void>();
 
   protected readonly fechaLarga = fechaLarga;
-  protected readonly hoy = aFechaISO(this.reloj());
+  protected readonly hoy = aFechaISO(this.ahora());
   protected readonly ultimoDia = sumarDias(this.hoy, MAX_DIAS_ANTICIPACION);
 
   protected readonly fecha = signal(this.hoy);
@@ -55,7 +56,7 @@ export class MoverCitaComponent implements OnInit {
 
   protected readonly ahoraMin = computed(() => {
     if (this.fecha() !== this.hoy) return null;
-    const ahora = this.reloj();
+    const ahora = this.ahora();
     return ahora.getHours() * 60 + ahora.getMinutes();
   });
 

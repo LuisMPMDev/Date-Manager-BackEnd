@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { AgendaRepo } from '../core/agenda-repo';
-import { RELOJ } from '../core/errores';
+import { AhoraService } from '../core/ahora';
 import { Cita, Cliente, Servicio } from '../core/models';
 import { construirAgendaDia } from './agenda-dia-columnas';
 import { aFechaISO } from './formato';
@@ -19,7 +19,7 @@ import { ReglaTiempoComponent } from './regla-tiempo';
 })
 export class AgendaDiaComponent {
   private readonly repo = inject(AgendaRepo);
-  private readonly reloj = inject(RELOJ);
+  private readonly ahoraActual = inject(AhoraService).ahora;
 
   readonly fecha = input.required<string>();
 
@@ -36,12 +36,12 @@ export class AgendaDiaComponent {
       servicios: this.servicios(),
       citas: this.citas(),
       clientes: this.clientes(),
-      ahora: this.reloj(),
+      ahora: this.ahoraActual(),
     }),
   );
 
   protected readonly ahoraMin = computed(() => {
-    const ahora = this.reloj();
+    const ahora = this.ahoraActual();
     return this.fecha() === aFechaISO(ahora) ? ahora.getHours() * 60 + ahora.getMinutes() : null;
   });
 

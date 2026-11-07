@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AgendaRepo } from '../../core/agenda-repo';
-import { RELOJ } from '../../core/errores';
+import { AhoraService } from '../../core/ahora';
 import { Alerta, alertas } from '../../core/metricas';
 import { Cita, Cliente, Servicio } from '../../core/models';
 import { SesionService } from '../../core/sesion';
@@ -16,7 +16,6 @@ interface Datos {
   servicios: Servicio[];
   citas: Cita[];
   clientes: Cliente[];
-  ahora: Date;
 }
 
 @Component({
@@ -28,7 +27,8 @@ interface Datos {
 })
 export class PanelComponent {
   private readonly repo = inject(AgendaRepo);
-  private readonly reloj = inject(RELOJ);
+  private readonly reloj = inject(AhoraService);
+  private readonly ahora = this.reloj.ahora;
   private readonly router = inject(Router);
   private readonly sesion = inject(SesionService);
 
@@ -44,11 +44,12 @@ export class PanelComponent {
     return nombre ? `Hola, ${nombre}. Así va el día` : 'Hola. Así va el día';
   });
 
-  protected readonly hoy = computed(() => aFechaISO(this.datos()?.ahora ?? this.reloj()));
+  protected readonly hoy = computed(() => aFechaISO(this.ahora()));
 
   protected readonly vista = computed(() => {
-    const d = this.datos();
-    if (!d) return null;
+    const datos = this.datos();
+    if (!datos) return null;
+    const d = { ...datos, ahora: this.ahora() }; // la hora corre aunque los datos no cambien
     const hoy = aFechaISO(d.ahora);
     const { visibles, extra } = limitarAlertas(alertas(d.servicios, d.citas, d.ahora));
     return {
@@ -83,6 +84,7 @@ export class PanelComponent {
 
   private async cargar(): Promise<void> {
     const numero = ++this.pedido;
+    this.reloj.actualizar();
     try {
       const [servicios, citas, clientes] = await Promise.all([
         this.repo.servicios(),
@@ -90,7 +92,7 @@ export class PanelComponent {
         this.repo.clientes(),
       ]);
       if (numero !== this.pedido) return;
-      this.datos.set({ servicios, citas, clientes, ahora: this.reloj() });
+      this.datos.set({ servicios, citas, clientes });
       this.error.set('');
     } catch {
       if (numero !== this.pedido) return;
