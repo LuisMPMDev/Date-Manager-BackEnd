@@ -1,6 +1,8 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, signal } from '@angular/core';
 import { AgendaRepo } from '../../core/agenda-repo';
+import { AhoraService } from '../../core/ahora';
 import { RELOJ } from '../../core/errores';
+import { aHHmm } from '../../core/horarios';
 import { Cita, Cliente, Servicio } from '../../core/models';
 import { SesionService } from '../../core/sesion';
 import { aFechaISO, fechaLarga } from '../../shared/formato';
@@ -21,6 +23,7 @@ export class CitasComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly hoy = aFechaISO(inject(RELOJ)());
+  private readonly ahora = inject(AhoraService).ahora;
   protected readonly sesion = inject(SesionService);
 
   protected readonly fechaLarga = fechaLarga;
@@ -94,6 +97,13 @@ export class CitasComponent {
   }
 
   // --- Marcar como atendida ------------------------------------------------
+
+  /** Solo se puede atender una cita que ya empezó (su inicio no está en el futuro). */
+  protected yaEmpezo(cita: Cita): boolean {
+    const ahora = this.ahora();
+    const hoy = aFechaISO(ahora);
+    return cita.fecha < hoy || (cita.fecha === hoy && cita.inicio <= aHHmm(ahora.getHours() * 60 + ahora.getMinutes()));
+  }
 
   protected async atender(id: string): Promise<void> {
     await this.ejecutar(id, () => this.repo.marcarAtendida(id), 'Cita marcada como atendida.');

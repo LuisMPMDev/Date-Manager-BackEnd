@@ -10,15 +10,19 @@ import { CitasComponent } from './citas';
 /** Ayudas compartidas por las pruebas de la pantalla de citas (sin pruebas propias). */
 export const AHORA = new Date(2026, 10, 9, 8, 0); // lunes 9 de noviembre de 2026, 08:00
 export const HOY = '2026-11-09';
+export const TARDE = new Date(2026, 10, 9, 23, 0); // ya pasaron todas las citas de hoy
+
+let reloj = AHORA;
 
 export async function configurar(): Promise<void> {
   localStorage.clear();
   sessionStorage.clear();
+  reloj = AHORA;
   TestBed.resetTestingModule();
   await TestBed.configureTestingModule({
     imports: [CitasComponent],
     providers: [
-      { provide: RELOJ, useValue: () => AHORA },
+      { provide: RELOJ, useValue: () => reloj },
       { provide: AgendaRepo, useClass: DemoAgendaRepo },
     ],
   }).compileComponents();
@@ -31,12 +35,17 @@ export async function esperar(fixture: ComponentFixture<unknown>) {
   }
 }
 
-/** Sin `permisos`, la sesión es del administrador (todos los permisos). */
-export async function crear(permisos?: Permiso[]) {
+/**
+ * Sin `permisos`, la sesión es del administrador (todos los permisos).
+ * `ahora` mueve el reloj después de sembrar los datos de ejemplo (que son relativos al lunes 9, 08:00).
+ */
+export async function crear(permisos?: Permiso[], ahora?: Date) {
   const datos = sembrar(AHORA);
   const marta = datos.usuarios.find(u => u.usuario === 'marta')!;
   const roles = permisos ? [{ ...datos.roles[0], permisos }] : datos.roles;
   TestBed.inject(SesionService).iniciar(marta, roles);
+  TestBed.inject(AgendaRepo); // siembra con el reloj de las 08:00
+  if (ahora) reloj = ahora;
   const fixture = TestBed.createComponent(CitasComponent);
   fixture.detectChanges();
   await esperar(fixture);

@@ -1,7 +1,7 @@
 import { sumarDias } from '../../shared/formato';
 import {
   boton, celdas, configurar, crear, desde, elegir, esperar, fila, filas, HOY, ids, porFechaYHora, primeraConfirmada,
-  repo, textosBotones,
+  repo, TARDE, textosBotones,
 } from './citas.pruebas';
 
 describe('CitasComponent', () => {
@@ -105,10 +105,32 @@ describe('CitasComponent', () => {
 
   // --- Permisos y estados --------------------------------------------------
 
-  it('en una cita Confirmada aparecen las tres acciones', async () => {
-    const { el } = await crear();
+  it('en una cita Confirmada que ya empezó aparecen las tres acciones', async () => {
+    const { el } = await crear(undefined, TARDE);
     const cita = await primeraConfirmada(el);
     expect(textosBotones(fila(el, cita.id))).toEqual(['Mover cita', 'Cancelar cita', 'Marcar como atendida']);
+  });
+
+  it('«Marcar como atendida» solo se ofrece cuando la cita ya empezó', async () => {
+    const { fixture, el } = await crear(); // 08:00: todavía no empieza ninguna cita de hoy
+    const citas = await repo().citas();
+    const proxima = citas.filter(c => c.fecha === HOY && c.estado === 'Confirmada').sort(porFechaYHora)[0];
+    expect(proxima.inicio > '08:00').toBe(true);
+    expect(textosBotones(fila(el, proxima.id))).toEqual(['Mover cita', 'Cancelar cita']);
+    const futura = citas.find(c => c.fecha > HOY && c.estado === 'Confirmada')!;
+    elegir(el, 'input[name="fecha"]', futura.fecha);
+    await esperar(fixture);
+    expect(textosBotones(fila(el, futura.id))).toEqual(['Mover cita', 'Cancelar cita']);
+  });
+
+  it('«Marcar como atendida» aparece justo a la hora de inicio y se mantiene después', async () => {
+    const { el } = await crear(undefined, new Date(2026, 10, 9, 9, 0));
+    const citas = await repo().citas();
+    const deHoy = citas.filter(c => c.fecha === HOY && c.estado === 'Confirmada');
+    expect(deHoy.length).toBeGreaterThan(0);
+    for (const c of deHoy) {
+      expect(textosBotones(fila(el, c.id)).includes('Marcar como atendida'), `${c.inicio}`).toBe(c.inicio <= '09:00');
+    }
   });
 
   it('las citas Canceladas y Atendidas no tienen acciones', async () => {
@@ -125,7 +147,7 @@ describe('CitasComponent', () => {
   });
 
   it('sin gestionar_citas no aparecen los botones Cancelar y Mover', async () => {
-    const { el } = await crear(['ver_citas', 'atender_citas']);
+    const { el } = await crear(['ver_citas', 'atender_citas'], TARDE);
     const cita = await primeraConfirmada(el);
     expect(textosBotones(fila(el, cita.id))).toEqual(['Marcar como atendida']);
     expect(textosBotones(el)).not.toContain('Cancelar cita');
@@ -169,7 +191,7 @@ describe('CitasComponent', () => {
   });
 
   it('«No, volver» deja la cita Confirmada y restituye los botones', async () => {
-    const { fixture, el } = await crear();
+    const { fixture, el } = await crear(undefined, TARDE);
     const cita = await primeraConfirmada(el);
     boton(fila(el, cita.id), 'Cancelar cita').click();
     await esperar(fixture);
@@ -182,7 +204,7 @@ describe('CitasComponent', () => {
   });
 
   it('marcar como atendida cambia el estado y quita las acciones', async () => {
-    const { fixture, el } = await crear();
+    const { fixture, el } = await crear(undefined, TARDE);
     const cita = await primeraConfirmada(el);
     boton(fila(el, cita.id), 'Marcar como atendida').click();
     await esperar(fixture);

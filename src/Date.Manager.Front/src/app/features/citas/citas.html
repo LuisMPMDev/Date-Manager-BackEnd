@@ -78,7 +78,7 @@
                       <button type="button" class="btn peligro" data-accion="cancelar" (click)="pedirCancelacion(f.cita.id)"
                               [attr.aria-label]="'Cancelar cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Cancelar cita</button>
                     }
-                    @if (sesion.puede('atender_citas')) {
+                    @if (sesion.puede('atender_citas') && yaEmpezo(f.cita)) {
                       <button type="button" class="btn" data-accion="atender" (click)="atender(f.cita.id)"
                               [attr.aria-label]="'Marcar como atendida la cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Marcar como atendida</button>
                     }
