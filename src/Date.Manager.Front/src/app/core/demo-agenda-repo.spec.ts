@@ -91,6 +91,21 @@ describe('DemoAgendaRepo', () => {
     );
   });
 
+  it('en un servicio inactivo no hay horarios para reservar, pero su cita sí se puede mover', async () => {
+    const consulta = await servicioPorNombre(repo, 'Consulta inicial');
+    const [h1] = await repo.horariosLibres(consulta.id, FECHA);
+    const cita = await repo.reservar({ servicioId: consulta.id, fecha: FECHA, inicio: h1, cliente: CLIENTE });
+    await repo.guardarServicio({ ...consulta, activo: false });
+
+    expect(await repo.horariosLibres(consulta.id, FECHA)).toEqual([]);
+    const paraMover = await repo.horariosLibres(consulta.id, FECHA, cita.id);
+    expect(paraMover).toContain(h1);
+    const otro = paraMover.find(h => h !== h1)!;
+    const movida = await repo.moverCita(cita.id, FECHA, otro);
+    expect(movida.inicio).toBe(otro);
+    expect(movida.fin).toBe(sumarMinutos(otro, 30));
+  });
+
   it('reutiliza el cliente por correo sin distinguir mayúsculas y actualiza el teléfono', async () => {
     const consulta = await servicioPorNombre(repo, 'Consulta inicial');
     const [h1] = await repo.horariosLibres(consulta.id, FECHA);

@@ -50,7 +50,8 @@ export function horariosLibres(p: {
   excluirCitaId?: string;
 }): string[] {
   const { servicio, fecha, citas, ahora, excluirCitaId } = p;
-  if (!servicio.activo) return [];
+  // Un servicio inactivo no se puede reservar; pero sus citas ya existentes sí se pueden mover (excluirCitaId).
+  if (!servicio.activo && excluirCitaId === undefined) return [];
 
   const dias = diasDesde(ahora, fecha);
   if (dias < 0 || dias > MAX_DIAS_ANTICIPACION) return [];

@@ -95,6 +95,14 @@ describe('horarios', () => {
     expect(r).toEqual([]);
   });
 
+  it('servicio inactivo: al mover una cita (excluirCitaId) sí calcula los horarios libres', () => {
+    const inactivo = servicio({ activo: false });
+    const citas = [cita({ id: 'c1', inicio: '10:00', fin: '11:00' })];
+    const r = horariosLibres({ servicio: inactivo, fecha: LUNES, citas, ahora: AHORA, excluirCitaId: 'c1' });
+    expect(r).toEqual(['09:00', '09:30', '10:00', '10:30', '11:00']);
+    expect(horariosLibres({ servicio: inactivo, fecha: LUNES, citas, ahora: AHORA })).toEqual([]);
+  });
+
   it('excluirCitaId libera el horario propio', () => {
     const citas = [cita({ id: 'c1', inicio: '10:00', fin: '11:00' })];
     expect(horariosLibres({ servicio: servicio(), fecha: LUNES, citas, ahora: AHORA })).not.toContain('10:00');

@@ -4,7 +4,7 @@ import { aFechaISO } from './formato';
 import { restar, Tramo, unir } from './regla-bloques';
 import { BloqueRegla } from './regla-tiempo';
 
-export interface ColumnaAgenda { servicioId: string; nombre: string; bloques: BloqueRegla[] }
+export interface ColumnaAgenda { servicioId: string; nombre: string; inactivo: boolean; bloques: BloqueRegla[] }
 export interface AgendaDelDia { desdeMin: number; hastaMin: number; columnas: ColumnaAgenda[] }
 
 /** «Camila Rojas» -> «Camila R.» */
@@ -16,10 +16,12 @@ function nombreCorto(cliente: Cliente | undefined): string {
 
 /**
  * Lo que dibuja la agenda de un día: una columna por servicio activo con el mismo rango de horas.
+ * - Un servicio inactivo que ese día todavía tiene citas conserva su columna, marcada «inactivo»:
+ *   todo va rayado (no ofrece horarios libres) y se ven sus citas para poder gestionarlas.
  * - El rango cubre todas las ventanas de ese día (y las citas dibujadas), redondeado a horas completas.
  * - Lo que queda fuera de las ventanas del servicio va «fuera» (rayado).
  * - Citas confirmadas son «cita»; atendidas o ya terminadas, «atendida»; canceladas no se dibujan.
- * Devuelve null si ningún servicio activo atiende ese día.
+ * Devuelve null si ningún servicio activo atiende ese día y no hay citas que mostrar.
  */
 export function construirAgendaDia(p: {
   fecha: string;
@@ -29,15 +31,15 @@ export function construirAgendaDia(p: {
   ahora: Date;
 }): AgendaDelDia | null {
   const dia = isoDia(p.fecha);
-  const activos = p.servicios.filter(s => s.activo);
+  const vivasDelDia = p.citas.filter(c => c.fecha === p.fecha && c.estado !== 'Cancelada');
+  const conCitas = new Set(vivasDelDia.map(c => c.servicioId));
+  const mostrados = p.servicios.filter(s => s.activo || conCitas.has(s.id));
   const ventanasDe = (s: Servicio): Tramo[] =>
-    unir(s.ventanas.filter(v => v.dia === dia).map(v => [aMinutos(v.inicio), aMinutos(v.fin)] as Tramo));
-  const ventanas = new Map(activos.map(s => [s.id, ventanasDe(s)]));
+    s.activo ? unir(s.ventanas.filter(v => v.dia === dia).map(v => [aMinutos(v.inicio), aMinutos(v.fin)] as Tramo)) : [];
+  const ventanas = new Map(mostrados.map(s => [s.id, ventanasDe(s)]));
 
-  const citasDelDia = p.citas.filter(
-    c => c.fecha === p.fecha && c.estado !== 'Cancelada' && ventanas.has(c.servicioId),
-  );
-  if (![...ventanas.values()].some(v => v.length)) return null;
+  const citasDelDia = vivasDelDia.filter(c => ventanas.has(c.servicioId));
+  if (![...ventanas.values()].some(v => v.length) && !citasDelDia.length) return null;
 
   const extremos = [
     ...[...ventanas.values()].flat().flat(),
@@ -51,7 +53,7 @@ export function construirAgendaDia(p: {
   const minutosAhora = p.ahora.getHours() * 60 + p.ahora.getMinutes();
   const yaPaso = (c: Cita) => p.fecha < hoy || (p.fecha === hoy && aMinutos(c.fin) <= minutosAhora);
 
-  const columnas = activos.map((s): ColumnaAgenda => {
+  const columnas = mostrados.map((s): ColumnaAgenda => {
     const fuera = restar([[desdeMin, hastaMin]], ventanas.get(s.id)!).map(
       ([d, h]): BloqueRegla => ({ desdeMin: d, hastaMin: h, tipo: 'fuera' }),
     );
@@ -63,7 +65,7 @@ export function construirAgendaDia(p: {
         tipo: c.estado === 'Atendida' || yaPaso(c) ? 'atendida' : 'cita',
         etiqueta: `${c.inicio} · ${nombreCorto(p.clientes.find(x => x.id === c.clienteId))}`,
       }));
-    return { servicioId: s.id, nombre: s.nombre, bloques: [...fuera, ...citas] };
+    return { servicioId: s.id, nombre: s.nombre, inactivo: !s.activo, bloques: [...fuera, ...citas] };
   });
   return { desdeMin, hastaMin, columnas };
 }

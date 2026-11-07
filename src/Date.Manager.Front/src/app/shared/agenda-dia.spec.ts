@@ -145,10 +145,42 @@ describe('AgendaDiaComponent', () => {
     expect(el.textContent).toContain('Ningún servicio atiende este día.');
   });
 
-  it('con todos los servicios inactivos muestra el aviso', async () => {
+  it('con todos los servicios inactivos y sin citas ese día muestra el aviso', async () => {
+    for (const s of await repo().servicios()) await repo().guardarServicio({ ...s, activo: false });
+    const { el } = await crear('2026-11-23'); // lunes sin citas
+    expect(el.textContent).toContain('Ningún servicio atiende este día.');
+  });
+
+  it('un servicio inactivo con citas ese día conserva su columna, marcada «Inactivo» y sin horarios libres', async () => {
+    const consulta = (await repo().servicios()).find(s => s.id === 'srv-consulta')!;
+    const hoy = (await citasDe(LUNES)).filter(c => c.servicioId === consulta.id && c.estado !== 'Cancelada');
+    expect(hoy.length).toBeGreaterThan(0);
+    await repo().guardarServicio({ ...consulta, activo: false });
+
+    const { el } = await crear(LUNES);
+    expect(encabezados(el)).toEqual(['Consulta inicial', 'Sesión estándar', 'Sesión extendida']);
+    const columna = columnas(el)[0];
+    expect(columna.textContent).toContain('Inactivo');
+    expect(columnas(el)[1].textContent).not.toContain('Inactivo');
+    expect(bloques(columna, 'cita').length + bloques(columna, 'atendida').length).toBe(hoy.length);
+    // todo lo que no es cita va rayado: no hay horarios libres que ofrecer
+    expect(bloques(columna, 'fuera').length).toBeGreaterThan(0);
+    expect(columna.querySelectorAll('[data-testid="hueco"]').length).toBe(0);
+  });
+
+  it('un servicio inactivo sin citas ese día no dibuja columna', async () => {
+    const consulta = (await repo().servicios()).find(s => s.id === 'srv-consulta')!;
+    await repo().guardarServicio({ ...consulta, activo: false });
+    const { el } = await crear('2026-11-23');
+    expect(encabezados(el)).toEqual(['Sesión estándar', 'Sesión extendida']);
+  });
+
+  it('con todos los servicios inactivos pero con citas ese día muestra sus columnas y no el aviso', async () => {
     for (const s of await repo().servicios()) await repo().guardarServicio({ ...s, activo: false });
     const { el } = await crear(LUNES);
-    expect(el.textContent).toContain('Ningún servicio atiende este día.');
+    expect(columnas(el).length).toBeGreaterThan(0);
+    expect(columnas(el).every(c => c.textContent?.includes('Inactivo'))).toBe(true);
+    expect(el.textContent).not.toContain('Ningún servicio atiende este día.');
   });
 
   it('no muestra el aviso en un día con servicio', async () => {

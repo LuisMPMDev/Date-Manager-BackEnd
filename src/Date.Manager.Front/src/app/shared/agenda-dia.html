@@ -2,7 +2,12 @@
   <div class="columnas" role="group" aria-label="Agenda del día">
     @for (c of a.columnas; track c.servicioId) {
       <section class="columna" data-testid="columna">
-        <h3>{{ c.nombre }}</h3>
+        <div class="cabecera">
+          <h3>{{ c.nombre }}</h3>
+          @if (c.inactivo) {
+            <span class="inactivo">Inactivo</span>
+          }
+        </div>
         <app-regla-tiempo [desdeMin]="a.desdeMin" [hastaMin]="a.hastaMin" [bloques]="c.bloques"
                           [ahoraMin]="ahoraMin()" />
       </section>
