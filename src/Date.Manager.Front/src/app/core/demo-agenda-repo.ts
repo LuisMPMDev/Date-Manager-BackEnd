@@ -1,6 +1,7 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { DestroyRef, inject, Injectable, signal } from '@angular/core';
 import { AgendaRepo, DatosCliente } from './agenda-repo';
 import { CambioNoPermitidoError, HorarioNoDisponibleError, RELOJ, RolEnUsoError } from './errores';
+import { aFechaISO } from './fechas';
 import { horariosLibres, sumarMinutos } from './horarios';
 import { Cita, Cliente, Datos, Rol, Servicio, Usuario } from './models';
 import { conDependencias, puedeEliminarRol, validarCambioRol } from './permisos';
@@ -8,6 +9,16 @@ import { sembrar } from './seed';
 
 const CLAVE_ALMACEN = 'datemanager.demo.v1';
 const LISTAS: (keyof Datos)[] = ['servicios', 'clientes', 'citas', 'roles', 'usuarios'];
+
+/**
+ * Lo que se guarda en el navegador: los datos más dos marcas.
+ * `sembradoEn` es el día (local) en que se crearon los datos de ejemplo y `editado` indica si alguien
+ * hizo algún cambio desde entonces. Los datos guardados por la versión anterior no traen marcas.
+ */
+interface Almacenado extends Datos {
+  sembradoEn?: string;
+  editado?: boolean;
+}
 
 function nuevoId(prefijo: string): string {
   return `${prefijo}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -25,34 +36,98 @@ function guardarPorId<T extends { id: string }>(lista: T[], item: T): T[] {
 @Injectable()
 export class DemoAgendaRepo extends AgendaRepo {
   private readonly reloj = inject(RELOJ);
-  private readonly datos = signal<Datos>(this.cargar());
+  // Las marcas se declaran antes que `datos`: `arrancar` las rellena al construir.
+  private sembradoEn = '';
+  private editado = false;
+  private readonly datos = signal<Datos>(this.arrancar());
   private readonly contador = signal(0);
   readonly cambios = this.contador.asReadonly();
 
+  constructor() {
+    super();
+    // Otra pestaña escribió en el almacén: se recargan los datos y se avisa a las pantallas.
+    if (typeof window !== 'undefined') {
+      const alCambiarAlmacen = (e: StorageEvent): void => {
+        if (e.key !== null && e.key !== CLAVE_ALMACEN) return;
+        if (this.sincronizar()) this.contador.update(n => n + 1);
+      };
+      window.addEventListener('storage', alCambiarAlmacen);
+      inject(DestroyRef).onDestroy(() => window.removeEventListener('storage', alCambiarAlmacen));
+    }
+  }
+
   // --- Almacén -------------------------------------------------------------
 
-  private cargar(): Datos {
+  /** Lee y valida lo guardado; null si no hay nada, está corrupto o no hay almacenamiento. */
+  private leer(): Almacenado | null {
     try {
       const crudo = localStorage.getItem(CLAVE_ALMACEN);
       if (crudo) {
         const dato = JSON.parse(crudo);
-        if (dato && LISTAS.every(l => Array.isArray(dato[l]))) return dato as Datos;
+        if (dato && LISTAS.every(l => Array.isArray(dato[l]))) return dato as Almacenado;
       }
     } catch {
-      // JSON corrupto o localStorage no disponible: se usan los datos de ejemplo
+      // JSON corrupto o localStorage no disponible
     }
-    return sembrar(this.reloj());
+    return null;
   }
 
-  /** Aplica un cambio, lo persiste y avisa a las pantallas. */
-  private escribir(cambio: (d: Datos) => Datos): void {
-    const siguiente = cambio(this.datos());
-    this.datos.set(siguiente);
+  private guardar(datos: Datos): void {
     try {
-      localStorage.setItem(CLAVE_ALMACEN, JSON.stringify(siguiente));
+      const almacenado: Almacenado = { ...datos, sembradoEn: this.sembradoEn, editado: this.editado };
+      localStorage.setItem(CLAVE_ALMACEN, JSON.stringify(almacenado));
     } catch {
       // sin almacenamiento persistente: la demo sigue funcionando en memoria
     }
+  }
+
+  /** Toma las marcas de lo guardado; sin marcas (versión anterior) se asume editado para no perder nada. */
+  private tomarMarcas(guardado: Almacenado): void {
+    const valida = typeof guardado.sembradoEn === 'string';
+    this.sembradoEn = valida ? guardado.sembradoEn! : '';
+    this.editado = valida ? guardado.editado !== false : true;
+  }
+
+  private sembrarDeNuevo(): Datos {
+    const datos = sembrar(this.reloj());
+    this.sembradoEn = aFechaISO(this.reloj());
+    this.editado = false;
+    this.guardar(datos);
+    return datos;
+  }
+
+  private arrancar(): Datos {
+    const guardado = this.leer();
+    if (guardado) {
+      this.tomarMarcas(guardado);
+      // Datos de ejemplo que nadie tocó y que ya son de un día anterior: se renuevan para que la demo no quede vieja.
+      if (!this.editado && this.sembradoEn < aFechaISO(this.reloj())) return this.sembrarDeNuevo();
+      return guardado;
+    }
+    return this.sembrarDeNuevo();
+  }
+
+  /** Vuelve a leer el almacén (otra pestaña pudo escribir). false si no hay nada válido que leer. */
+  private sincronizar(): boolean {
+    const guardado = this.leer();
+    if (!guardado) return false;
+    this.tomarMarcas(guardado);
+    this.datos.set(guardado);
+    return true;
+  }
+
+  /** Aplica un cambio sobre lo más reciente del almacén, lo persiste y avisa a las pantallas. */
+  private escribir(cambio: (d: Datos) => Datos, esSembrado = false): void {
+    this.sincronizar();
+    const siguiente = cambio(this.datos());
+    if (esSembrado) {
+      this.sembradoEn = aFechaISO(this.reloj());
+      this.editado = false;
+    } else {
+      this.editado = true;
+    }
+    this.datos.set(siguiente);
+    this.guardar(siguiente);
     this.contador.update(n => n + 1);
   }
 
@@ -73,6 +148,7 @@ export class DemoAgendaRepo extends AgendaRepo {
   }
 
   private cambiarCita(id: string, cambio: (c: Cita) => Cita): Cita {
+    this.sincronizar();
     const nueva = cambio(this.citaPorId(id));
     this.escribir(d => ({ ...d, citas: d.citas.map(c => (c.id === id ? nueva : c)) }));
     return copia(nueva);
@@ -96,6 +172,7 @@ export class DemoAgendaRepo extends AgendaRepo {
   }
 
   async reservar(p: { servicioId: string; fecha: string; inicio: string; cliente: DatosCliente }): Promise<Cita> {
+    this.sincronizar();
     const servicio = this.servicioPorId(p.servicioId);
     if (!this.libres(servicio, p.fecha).includes(p.inicio)) throw new HorarioNoDisponibleError();
 
@@ -127,6 +204,7 @@ export class DemoAgendaRepo extends AgendaRepo {
   }
 
   async moverCita(id: string, fecha: string, inicio: string): Promise<Cita> {
+    this.sincronizar();
     const cita = this.citaPorId(id);
     const servicio = this.servicioPorId(cita.servicioId);
     if (!this.libres(servicio, fecha, id).includes(inicio)) throw new HorarioNoDisponibleError();
@@ -156,6 +234,7 @@ export class DemoAgendaRepo extends AgendaRepo {
   }
 
   async guardarRol(rol: Rol, actorId: string): Promise<Rol> {
+    this.sincronizar();
     const { roles, usuarios } = this.datos();
     const rolAntes = roles.find(r => r.id === rol.id);
     const guardado: Rol = { ...copia(rol), permisos: conDependencias(rol.permisos) };
@@ -169,6 +248,7 @@ export class DemoAgendaRepo extends AgendaRepo {
   }
 
   async eliminarRol(id: string): Promise<void> {
+    this.sincronizar();
     if (!puedeEliminarRol(id, this.datos().usuarios)) throw new RolEnUsoError();
     this.escribir(d => ({ ...d, roles: d.roles.filter(r => r.id !== id) }));
   }
@@ -194,6 +274,6 @@ export class DemoAgendaRepo extends AgendaRepo {
   }
 
   async reiniciar(): Promise<void> {
-    this.escribir(() => sembrar(this.reloj()));
+    this.escribir(() => sembrar(this.reloj()), true);
   }
 }

@@ -49,7 +49,9 @@ Con el servidor en `http://localhost:4200`:
 
 ## Dónde se guardan los datos
 
-Todo vive en el navegador (`localStorage`, clave `datemanager.demo.v1`): no hay servidor ni base de datos. Los cambios se conservan al recargar, pero son de ese navegador: no se comparten entre navegadores ni entre dispositivos. «Reiniciar demo» vuelve a los datos de ejemplo.
+Todo vive en el navegador (`localStorage`, clave `datemanager.demo.v1`): no hay servidor ni base de datos. Los cambios se conservan al recargar, pero son de ese navegador: no se comparten entre navegadores ni entre dispositivos. Las pestañas del mismo navegador se mantienen al día entre sí (una reserva hecha en `#/reservar` aparece en el panel abierto en otra pestaña). «Reiniciar demo» vuelve a los datos de ejemplo.
+
+Los datos de ejemplo se calculan respecto al día en que se crean: si nadie los modificó, se renuevan solos al abrir la demo otro día. Si ya editaste datos en días anteriores, pulsa «Reiniciar demo» antes de presentar para que la agenda vuelva a quedar alrededor de hoy.
 
 ## Fase 2
 

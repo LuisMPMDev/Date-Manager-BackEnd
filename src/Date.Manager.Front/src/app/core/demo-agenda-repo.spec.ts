@@ -1,3 +1,4 @@
+import { createEnvironmentInjector, EnvironmentInjector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { AgendaRepo, DatosCliente } from './agenda-repo';
 import { DemoAgendaRepo } from './demo-agenda-repo';
@@ -16,6 +17,19 @@ function crearRepo(): DemoAgendaRepo {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({ providers: [{ provide: RELOJ, useValue: () => AHORA }, DemoAgendaRepo] });
   return TestBed.inject(DemoAgendaRepo);
+}
+
+/** Otro repositorio sobre el mismo almacén, como una segunda pestaña del navegador. */
+function crearRepoAparte(reloj: () => Date = () => AHORA): DemoAgendaRepo {
+  const entorno = createEnvironmentInjector(
+    [{ provide: RELOJ, useValue: reloj }, DemoAgendaRepo],
+    TestBed.inject(EnvironmentInjector),
+  );
+  return entorno.get(DemoAgendaRepo);
+}
+
+function avisarCambioDeAlmacen(): void {
+  window.dispatchEvent(new StorageEvent('storage', { key: CLAVE }));
 }
 
 async function servicioPorNombre(repo: AgendaRepo, nombre: string): Promise<Servicio> {
@@ -229,6 +243,144 @@ describe('DemoAgendaRepo', () => {
     expect(await repo.citas()).toEqual(semilla.citas);
     expect(await repo.servicios()).toEqual(semilla.servicios);
     expect(await repo.clientes()).toEqual(semilla.clientes);
+  });
+});
+
+describe('DemoAgendaRepo con dos pestañas', () => {
+  let a: DemoAgendaRepo;
+  let b: DemoAgendaRepo;
+
+  beforeEach(() => {
+    localStorage.clear();
+    a = crearRepo();
+    b = crearRepoAparte();
+  });
+
+  it('una reserva de A no se pierde cuando B escribe después con datos viejos', async () => {
+    const consulta = await servicioPorNombre(a, 'Consulta inicial');
+    const [inicio] = await a.horariosLibres(consulta.id, FECHA);
+    const reserva = await a.reservar({ servicioId: consulta.id, fecha: FECHA, inicio, cliente: CLIENTE });
+
+    const otra = (await b.citas()).find(c => c.estado === 'Confirmada')!;
+    await b.cancelarCita(otra.id);
+
+    avisarCambioDeAlmacen(); // A se entera por el evento storage, como en el navegador
+    for (const repo of [a, b, crearRepoAparte()]) {
+      const citas = await repo.citas();
+      expect(citas.find(c => c.id === reserva.id)?.estado, 'la reserva sigue en pie').toBe('Confirmada');
+      expect(citas.find(c => c.id === otra.id)?.estado).toBe('Cancelada');
+    }
+    expect((await b.clientes()).some(c => c.correo === CLIENTE.correo)).toBe(true);
+  });
+
+  it('no deja reservar dos veces el mismo horario desde pestañas distintas', async () => {
+    const consulta = await servicioPorNombre(a, 'Consulta inicial');
+    const [inicio] = await a.horariosLibres(consulta.id, FECHA);
+    await a.reservar({ servicioId: consulta.id, fecha: FECHA, inicio, cliente: CLIENTE });
+    await expect(b.reservar({ servicioId: consulta.id, fecha: FECHA, inicio, cliente: CLIENTE })).rejects.toBeInstanceOf(
+      HorarioNoDisponibleError,
+    );
+  });
+
+  it('un evento storage recarga los datos de la otra pestaña y sube cambios', async () => {
+    const consulta = await servicioPorNombre(a, 'Consulta inicial');
+    const [inicio] = await a.horariosLibres(consulta.id, FECHA);
+    const reserva = await a.reservar({ servicioId: consulta.id, fecha: FECHA, inicio, cliente: CLIENTE });
+    expect((await b.citas()).some(c => c.id === reserva.id)).toBe(false); // todavía no se enteró
+
+    const antes = b.cambios();
+    avisarCambioDeAlmacen();
+    expect(b.cambios()).toBe(antes + 1);
+    expect((await b.citas()).some(c => c.id === reserva.id)).toBe(true);
+  });
+
+  it('un evento storage de otra clave se ignora', async () => {
+    const antes = b.cambios();
+    window.dispatchEvent(new StorageEvent('storage', { key: 'otra.clave' }));
+    expect(b.cambios()).toBe(antes);
+  });
+
+  it('al destruir el repositorio deja de escuchar el almacén', () => {
+    const entorno = createEnvironmentInjector(
+      [{ provide: RELOJ, useValue: () => AHORA }, DemoAgendaRepo],
+      TestBed.inject(EnvironmentInjector),
+    );
+    const c = entorno.get(DemoAgendaRepo);
+    entorno.destroy();
+    const antes = c.cambios();
+    avisarCambioDeAlmacen();
+    expect(c.cambios()).toBe(antes);
+  });
+});
+
+describe('DemoAgendaRepo con el paso de los días', () => {
+  const DIA_SIGUIENTE = new Date(2026, 10, 12, 9, 0); // jueves 2026-11-12
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('guarda el día en que se sembraron los datos y que nadie los editó', () => {
+    crearRepo();
+    const guardado = JSON.parse(localStorage.getItem(CLAVE)!);
+    expect(guardado.sembradoEn).toBe('2026-11-09');
+    expect(guardado.editado).toBe(false);
+  });
+
+  it('cualquier escritura marca los datos como editados', async () => {
+    const repo = crearRepo();
+    const consulta = await servicioPorNombre(repo, 'Consulta inicial');
+    await repo.guardarServicio({ ...consulta, valor: 1 });
+    const guardado = JSON.parse(localStorage.getItem(CLAVE)!);
+    expect(guardado.editado).toBe(true);
+    expect(guardado.sembradoEn).toBe('2026-11-09');
+  });
+
+  it('datos de ejemplo sin tocar de un día anterior se renuevan al abrir', async () => {
+    crearRepo();
+    const nuevo = crearRepoAparte(() => DIA_SIGUIENTE);
+    const semilla = sembrar(DIA_SIGUIENTE);
+    expect(await nuevo.citas()).toEqual(semilla.citas);
+    const guardado = JSON.parse(localStorage.getItem(CLAVE)!);
+    expect(guardado.sembradoEn).toBe('2026-11-12');
+    expect(guardado.editado).toBe(false);
+  });
+
+  it('datos de ejemplo sin tocar del mismo día se conservan', async () => {
+    const repo = crearRepo();
+    const citas = await repo.citas();
+    const mismoDia = crearRepoAparte(() => new Date(2026, 10, 9, 20, 0));
+    expect(await mismoDia.citas()).toEqual(citas);
+  });
+
+  it('datos editados se conservan aunque pasen los días', async () => {
+    const repo = crearRepo();
+    const consulta = await servicioPorNombre(repo, 'Consulta inicial');
+    await repo.guardarServicio({ ...consulta, valor: 45000 });
+    const nuevo = crearRepoAparte(() => DIA_SIGUIENTE);
+    expect((await servicioPorNombre(nuevo, 'Consulta inicial')).valor).toBe(45000);
+    expect(await nuevo.citas()).toEqual(await repo.citas());
+  });
+
+  it('reiniciar vuelve a marcar los datos como sin tocar, con el día de hoy', async () => {
+    const repo = crearRepo();
+    const consulta = await servicioPorNombre(repo, 'Consulta inicial');
+    await repo.guardarServicio({ ...consulta, valor: 1 });
+    await repo.reiniciar();
+    const guardado = JSON.parse(localStorage.getItem(CLAVE)!);
+    expect(guardado.editado).toBe(false);
+    expect(guardado.sembradoEn).toBe('2026-11-09');
+  });
+
+  it('datos guardados por la versión anterior (sin marcas) cargan y se conservan', async () => {
+    const antiguo = sembrar(new Date(2026, 9, 1, 9, 0));
+    antiguo.servicios[0].valor = 12345;
+    localStorage.setItem(CLAVE, JSON.stringify(antiguo));
+    const repo = crearRepo();
+    expect((await servicioPorNombre(repo, 'Consulta inicial')).valor).toBe(12345);
+    expect(await repo.citas()).toEqual(antiguo.citas);
+    await repo.guardarServicio({ ...antiguo.servicios[0], valor: 2 });
+    expect(JSON.parse(localStorage.getItem(CLAVE)!).editado).toBe(true);
   });
 });
 
