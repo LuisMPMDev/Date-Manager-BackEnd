@@ -1,3 +1,4 @@
+import { fechaLarga } from './fechas';
 import { aMinutos, isoDia } from './horarios';
 import { Cita, Servicio } from './models';
 
@@ -97,7 +98,7 @@ export function alertas(servicios: Servicio[], citas: Cita[], ahora: Date): Aler
 
   for (const c of citas) {
     const nombre = nombres.get(c.servicioId) ?? 'Servicio';
-    const detalle = `${nombre}, ${c.fecha} a las ${c.inicio}`;
+    const detalle = `${nombre}, ${fechaLarga(c.fecha)} a las ${c.inicio}`;
     if (c.estado === 'Cancelada') {
       if (reciente(c.canceladaEn)) resultado.push({ tipo: 'cita_cancelada', titulo: 'Cita cancelada', detalle, ref: c.id });
     } else if (reciente(c.creadaEn)) {

@@ -1,4 +1,4 @@
-import { DIAS } from '../shared/formato';
+import { DIAS } from './fechas';
 import { aMinutos } from './horarios';
 import { Servicio } from './models';
 

@@ -117,6 +117,12 @@ describe('alertas', () => {
     expect(r[0].titulo).toBe('Cita nueva');
   });
 
+  it('el detalle escribe la fecha en español, no en ISO', () => {
+    const creadaEn = new Date(AHORA.getTime() - 2 * 3600 * 1000).toISOString();
+    const r = alertas([servicio()], [cita({ fecha: '2026-11-08', inicio: '09:00', creadaEn })], AHORA);
+    expect(r[0].detalle).toBe('Corte, Domingo 8 de noviembre a las 09:00');
+  });
+
   it('una cita creada hace 30 h no genera alerta', () => {
     const creadaEn = new Date(AHORA.getTime() - 30 * 3600 * 1000).toISOString();
     expect(alertas([servicio()], [cita({ creadaEn })], AHORA)).toEqual([]);
