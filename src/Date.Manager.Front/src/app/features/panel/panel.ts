@@ -39,6 +39,9 @@ export class PanelComponent {
   protected readonly error = signal('');
   private pedido = 0; // descarta respuestas que llegan tarde
 
+  /** «Abrir» lleva a Citas: sin ese permiso el botón solo rebotaría. */
+  protected readonly puedeVerCitas = computed(() => this.sesion.puede('ver_citas'));
+
   protected readonly saludo = computed(() => {
     const nombre = this.sesion.usuario()?.nombre;
     return nombre ? `Hola, ${nombre}. Así va el día` : 'Hola. Así va el día';

@@ -2,6 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Servicio } from '../../core/models';
 import { alertas, citasPorDia } from '../../core/metricas';
+import { sembrar } from '../../core/seed';
+import { SesionService } from '../../core/sesion';
 import { aFechaISO, sumarDias } from '../../shared/formato';
 import {
   AHORA, botonesAlerta, celdas, configurar, crear, DIA_MS, esperar, filasProximas, fijarReloj, GraficaDoble, kpi, repo,
@@ -170,6 +172,19 @@ describe('PanelComponent', () => {
       expect(abrir.textContent?.trim()).toBe('Abrir');
       abrir.click();
       expect(navegar).toHaveBeenCalledWith('/citas');
+    });
+
+    it('sin el permiso «ver citas» no ofrece «Abrir», pero sigue listando las citas', async () => {
+      const { fixture, el } = await crear();
+      expect(filasProximas(el)[0].querySelector('button')).not.toBeNull();
+
+      const datos = sembrar(AHORA);
+      const marta = datos.usuarios.find(u => u.usuario === 'marta')!;
+      TestBed.inject(SesionService).iniciar(marta, [{ ...datos.roles[0], permisos: ['ver_panel'] }]);
+      await esperar(fixture);
+
+      expect(filasProximas(el).length).toBeGreaterThan(0);
+      expect(el.querySelectorAll('.proximas button')).toHaveLength(0);
     });
 
     it('sin citas por delante dice «No hay citas próximas.» y «Sin citas próximas»', async () => {

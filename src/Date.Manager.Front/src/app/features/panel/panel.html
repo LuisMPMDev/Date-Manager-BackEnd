@@ -85,8 +85,10 @@
                 <td class="nowrap">{{ f.cliente?.telefono }}</td>
                 <td><span class="chip">{{ f.cita.estado }}</span></td>
                 <td class="nowrap">
-                  <button type="button" class="btn" (click)="abrirCitas()"
-                          [attr.aria-label]="'Abrir cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Abrir</button>
+                  @if (puedeVerCitas()) {
+                    <button type="button" class="btn" (click)="abrirCitas()"
+                            [attr.aria-label]="'Abrir cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Abrir</button>
+                  }
                 </td>
               </tr>
             } @empty {
