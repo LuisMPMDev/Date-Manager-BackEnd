@@ -444,4 +444,64 @@ describe('sembrar', () => {
     expect(fechas[0] >= '2026-10-19').toBe(true);
     expect(fechas[fechas.length - 1] <= '2026-11-19').toBe(true);
   });
+
+  describe('las citas de hoy siguen a la hora actual', () => {
+    const horaAMin = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3));
+    const citasDe = (ahora: Date) => sembrar(ahora).citas.filter(c => c.estado !== 'Cancelada');
+    const hoyDe = (ahora: Date) =>
+      `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
+
+    it('por la tarde hay una cita ya atendida y otras por venir hoy', () => {
+      const tarde = new Date(2026, 10, 9, 14, 0);
+      const hoy = citasDe(tarde).filter(c => c.fecha === hoyDe(tarde));
+      const atendidas = hoy.filter(c => c.estado === 'Atendida');
+      const porVenir = hoy.filter(c => c.estado === 'Confirmada');
+      expect(atendidas.length).toBe(1);
+      expect(horaAMin(atendidas[0].fin)).toBeLessThanOrEqual(14 * 60);
+      expect(porVenir.length).toBeGreaterThanOrEqual(1);
+      for (const c of porVenir) expect(horaAMin(c.inicio)).toBeGreaterThanOrEqual(14 * 60);
+    });
+
+    it('a primera hora las dos citas de hoy están por venir', () => {
+      const hoy = citasDe(AHORA).filter(c => c.fecha === hoyDe(AHORA));
+      expect(hoy.length).toBe(2);
+      for (const c of hoy) {
+        expect(c.estado).toBe('Confirmada');
+        expect(horaAMin(c.inicio)).toBeGreaterThanOrEqual(8 * 60);
+      }
+    });
+
+    it('de noche no queda ninguna cita de hoy por venir ni en el pasado: pasan al siguiente día hábil', () => {
+      const noche = new Date(2026, 10, 9, 22, 0);
+      const datos = sembrar(noche);
+      expect(datos.citas.length).toBe(sembrar(AHORA).citas.length);
+      expect(datos.citas.filter(c => c.fecha === hoyDe(noche) && c.estado === 'Confirmada')).toEqual([]);
+      for (const c of datos.citas.filter(c => c.estado === 'Confirmada')) {
+        expect(c.fecha > hoyDe(noche)).toBe(true);
+      }
+    });
+
+    it('un domingo las citas de hoy pasan al lunes, sin atendidas en el futuro', () => {
+      const domingo = new Date(2026, 10, 8, 15, 0);
+      const datos = sembrar(domingo);
+      for (const c of datos.citas) {
+        if (c.fecha >= hoyDe(domingo)) expect(c.estado).not.toBe('Atendida');
+      }
+    });
+
+    it('es determinista y coherente a cualquier hora', () => {
+      for (const hora of [0, 8, 11, 14, 17, 23]) {
+        const ahora = new Date(2026, 10, 9, hora, 15);
+        const datos = sembrar(ahora);
+        expect(sembrar(ahora)).toEqual(datos);
+        for (const cita of datos.citas.filter(c => c.estado !== 'Cancelada')) {
+          const servicio = datos.servicios.find(s => s.id === cita.servicioId)!;
+          const libres = horariosLibres({
+            servicio, fecha: cita.fecha, citas: datos.citas, ahora: medianoche(cita.fecha), excluirCitaId: cita.id,
+          });
+          expect(libres, `${hora}h ${cita.id}`).toContain(cita.inicio);
+        }
+      }
+    });
+  });
 });
