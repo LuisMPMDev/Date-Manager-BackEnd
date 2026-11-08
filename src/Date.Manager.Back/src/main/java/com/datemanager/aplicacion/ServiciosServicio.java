@@ -21,6 +21,7 @@ import com.datemanager.infraestructura.persistencia.VentanaEntidad;
 import com.datemanager.infraestructura.persistencia.VentanaRepositorio;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Casos de uso de servicios y sus ventanas de disponibilidad. */
@@ -63,9 +64,22 @@ public class ServiciosServicio {
     }
 
     /**
+     * Como {@link #buscar}, pero deja bloqueada la fila del servicio (la agenda del servicio) hasta que termine la
+     * transacción en curso: nadie más reserva, mueve ni cambia sus ventanas mientras tanto.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Servicio bloquear(UUID id) {
+        ServicioEntidad entidad = servicios.bloquear(id)
+                .orElseThrow(() -> new ErrorNegocio(CodigoError.NO_ENCONTRADO, "El servicio no existe."));
+        return entidad.aDominio(ventanasDe(id));
+    }
+
+    /**
      * Crea el servicio con ese id si no existe; si existe, lo reemplaza, ventanas incluidas: las que vienen con un
      * id ya existente en este servicio se actualizan, las nuevas se crean y las que no vienen se borran.
      * Se actualiza en el sitio (no se borra para reinsertar) para que reenviar los mismos ids no choque con la llave.
+     * Toma el mismo bloqueo que las reservas, así dos guardados simultáneos (o un guardado y una reserva) no
+     * mezclan ventanas.
      */
     @Transactional
     public Servicio guardar(Servicio recibido) {
@@ -74,7 +88,7 @@ public class ServiciosServicio {
         BigDecimal valor = recibido.valor().setScale(DECIMALES);
         String nombre = recibido.nombre().strip();
 
-        ServicioEntidad entidad = servicios.findById(id).orElse(null);
+        ServicioEntidad entidad = servicios.bloquear(id).orElse(null);
         if (entidad == null) {
             entidad = new ServicioEntidad(id, nombre, recibido.duracionMin(), recibido.activo(), valor);
         } else {
