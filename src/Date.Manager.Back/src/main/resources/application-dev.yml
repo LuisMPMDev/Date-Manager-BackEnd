@@ -1,0 +1,6 @@
+# Perfil dev: Swagger UI activo (la siembra de datos de ejemplo llega en una tarea posterior).
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

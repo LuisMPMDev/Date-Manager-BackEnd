@@ -1,0 +1,2 @@
+-- Línea base vacía: confirma que Flyway se conecta y migra.
+-- El esquema real llega en las migraciones siguientes.
