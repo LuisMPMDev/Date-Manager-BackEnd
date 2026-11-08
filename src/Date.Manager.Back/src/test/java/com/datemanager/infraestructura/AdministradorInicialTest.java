@@ -10,11 +10,18 @@ import com.datemanager.PruebaIntegracion;
 import com.datemanager.dominio.Permiso;
 import com.datemanager.infraestructura.persistencia.RolRepositorio;
 import com.datemanager.infraestructura.persistencia.UsuarioRepositorio;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.logging.LogLevel;
+import org.springframework.boot.logging.LoggingSystem;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.MutablePropertySources;
+import org.springframework.core.env.StandardEnvironment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -34,6 +41,23 @@ class AdministradorInicialTest extends PruebaIntegracion {
 
     @Autowired
     private PlatformTransactionManager transacciones;
+
+    @Autowired
+    private LoggingSystem loggingSystem;
+
+    @Autowired
+    private ConfigurableEnvironment entorno;
+
+    /** PruebaIntegracion deja este registrador en ERROR (sin ruido al arrancar); aquí se verifica su aviso. */
+    @BeforeEach
+    void mostrarAvisos() {
+        loggingSystem.setLogLevel(AdministradorInicial.class.getName(), LogLevel.WARN);
+    }
+
+    @AfterEach
+    void silenciarAvisos() {
+        loggingSystem.setLogLevel(AdministradorInicial.class.getName(), LogLevel.ERROR);
+    }
 
     private AdministradorInicial administrador(String usuario, String clave) {
         return new AdministradorInicial(roles, usuarios, codificador, transacciones, usuario, clave);
@@ -95,5 +119,23 @@ class AdministradorInicialTest extends PruebaIntegracion {
         administrador("", CLAVE).crearSiHaceFalta();
 
         assertThat(salida.getAll()).doesNotContain(CLAVE);
+    }
+
+    @Test
+    void lasPruebasNoLeenElAdministradorNiLosOrigenesDelEntornoReal() {
+        // Valores efectivos: los de PruebaIntegracion, aunque existan DATEMANAGER_ADMIN_* o
+        // DATEMANAGER_CORS_ORIGENES en el entorno.
+        assertThat(entorno.getProperty(ADMIN_USUARIO)).isEmpty();
+        assertThat(entorno.getProperty(ADMIN_CLAVE)).isEmpty();
+        assertThat(entorno.getProperty(CORS)).isEqualTo(ORIGEN_CORS);
+        assertThat(entorno.getProperty("datemanager.jwt.secreto")).startsWith("secreto-falso-solo-para-pruebas");
+
+        // Y la razón: las propiedades en línea de la prueba van antes que las variables de entorno.
+        MutablePropertySources fuentes = entorno.getPropertySources();
+        var enLinea = fuentes.get("Inlined Test Properties");
+        var variables = fuentes.get(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME);
+        assertThat(enLinea).isNotNull();
+        assertThat(variables).isNotNull();
+        assertThat(fuentes.precedenceOf(enLinea)).isLessThan(fuentes.precedenceOf(variables));
     }
 }

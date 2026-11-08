@@ -8,10 +8,3 @@ spring:
   flyway:
     clean-disabled: false
 
-# Pruebas herméticas: no leen el administrador inicial ni los orígenes CORS del entorno real.
-# (AdministradorInicialTest construye el bean con sus propios valores.)
-datemanager:
-  cors-origenes: http://localhost:4200
-  admin:
-    usuario: ""
-    clave: ""

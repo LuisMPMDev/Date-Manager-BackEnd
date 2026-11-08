@@ -23,11 +23,27 @@ import org.springframework.test.web.servlet.MockMvc;
  * (base {@code DateManagerTest}), expone {@link MockMvc} y un reloj que cada prueba puede fijar.
  * Antes de cada prueba restablece el reloj y vacía las tablas de datos.
  */
-@SpringBootTest
+@SpringBootTest(properties = {
+        // Propiedades en línea: tienen más prioridad que las variables de entorno, así las pruebas no
+        // dependen de DATEMANAGER_ADMIN_*, DATEMANAGER_CORS_ORIGENES ni DATEMANAGER_JWT_SECRETO reales.
+        // (Solo la base de pruebas, DATEMANAGER_TEST_DB_*, sale del entorno.)
+        PruebaIntegracion.ADMIN_USUARIO + "=",
+        PruebaIntegracion.ADMIN_CLAVE + "=",
+        PruebaIntegracion.CORS + "=" + PruebaIntegracion.ORIGEN_CORS,
+        "datemanager.jwt.secreto=secreto-falso-solo-para-pruebas-0123456789abcdef",
+        // Sin variables de administrador, AdministradorInicial avisaría (WARN) en cada arranque del contexto;
+        // AdministradorInicialTest sube el nivel a WARN solo mientras verifica ese aviso.
+        "logging.level.com.datemanager.infraestructura.AdministradorInicial=ERROR"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import(PruebaIntegracion.RelojDePrueba.class)
 public abstract class PruebaIntegracion {
+
+    public static final String ADMIN_USUARIO = "datemanager.admin.usuario";
+    public static final String ADMIN_CLAVE = "datemanager.admin.clave";
+    public static final String CORS = "datemanager.cors-origenes";
+    public static final String ORIGEN_CORS = "http://localhost:4200";
 
     @TestConfiguration(proxyBeanMethods = false)
     static class RelojDePrueba {
