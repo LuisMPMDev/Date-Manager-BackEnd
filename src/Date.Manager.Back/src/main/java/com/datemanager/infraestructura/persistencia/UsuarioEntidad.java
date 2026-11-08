@@ -6,8 +6,6 @@ import com.datemanager.dominio.Usuario;
 import com.datemanager.dominio.Validaciones;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -19,8 +17,8 @@ import jakarta.persistence.Table;
 @Table(name = "usuario")
 public class UsuarioEntidad {
 
+    /** Asignado por la aplicación: el panel crea usuarios con el id que elige el cliente (PUT con upsert). */
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(nullable = false, length = 100)
@@ -49,6 +47,12 @@ public class UsuarioEntidad {
 
     public UsuarioEntidad(String nombre, String apellido, String correo, String telefono, String usuario,
             String claveHash, UUID rolId) {
+        this(UUID.randomUUID(), nombre, apellido, correo, telefono, usuario, claveHash, rolId);
+    }
+
+    public UsuarioEntidad(UUID id, String nombre, String apellido, String correo, String telefono, String usuario,
+            String claveHash, UUID rolId) {
+        this.id = id;
         this.nombre = nombre;
         this.apellido = apellido;
         this.correo = correo;

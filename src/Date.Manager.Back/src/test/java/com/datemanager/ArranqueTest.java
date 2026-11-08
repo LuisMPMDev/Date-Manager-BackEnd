@@ -79,6 +79,15 @@ class ArranqueTest extends PruebaIntegracion {
     }
 
     @Test
+    void unaViolacionDeRestriccionDeLaBaseResponde409SinFiltrarDetalles() throws Exception {
+        mvc.perform(get(BASE + "/violacion-unica"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.codigo").value("CONFLICTO"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("detalle interno"))));
+    }
+
+    @Test
     void unaExcepcionInesperadaResponde500SinFiltrarDetalles() throws Exception {
         // La excepción se registra en el log (ERROR); aquí se silencia para no ensuciar la salida de pruebas.
         String registrador = "com.datemanager.api.ManejadorErrores";

@@ -28,6 +28,12 @@ class ControladorPrueba {
     void validacion(@Valid @RequestBody Cuerpo cuerpo) {
     }
 
+    /** Última línea de defensa: una violación de restricción de la base no puede ser un 500. */
+    @GetMapping("/violacion-unica")
+    void violacionUnica() {
+        throw new org.springframework.dao.DataIntegrityViolationException("Violation of UNIQUE KEY (detalle interno)");
+    }
+
     @GetMapping("/inesperado")
     void inesperado() {
         throw new IllegalStateException("detalle interno que no debe filtrarse");

@@ -7,6 +7,7 @@ import com.datemanager.dominio.CodigoError;
 import com.datemanager.dominio.ErrorNegocio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -50,7 +51,18 @@ public class ManejadorErrores extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ErrorNegocio.class)
     ResponseEntity<Object> errorNegocio(ErrorNegocio e) {
-        return respuesta(e.codigo(), e.getMessage(), null);
+        return respuesta(e.codigo(), e.getMessage(), e.campos());
+    }
+
+    /**
+     * Última línea de defensa: si una restricción de la base (única, clave foránea) salta pese a las
+     * comprobaciones de {@code aplicacion} (p. ej. dos peticiones simultáneas), es un conflicto, no un 500.
+     * El mensaje de la base no se devuelve: puede traer valores de las columnas.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<Object> violacionDeRestriccion(DataIntegrityViolationException e) {
+        return respuesta(CodigoError.CONFLICTO,
+                "No se pudo guardar porque entra en conflicto con datos que ya existen.", null);
     }
 
     /**

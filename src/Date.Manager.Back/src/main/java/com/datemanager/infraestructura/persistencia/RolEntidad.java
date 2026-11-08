@@ -13,8 +13,6 @@ import jakarta.persistence.Convert;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
@@ -24,8 +22,8 @@ import jakarta.persistence.Table;
 @Table(name = "rol")
 public class RolEntidad {
 
+    /** Asignado por la aplicación: el panel crea roles con el id que elige el cliente (PUT con upsert). */
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(nullable = false, length = 100)
@@ -44,6 +42,11 @@ public class RolEntidad {
     }
 
     public RolEntidad(String nombre, String descripcion, Set<Permiso> permisos) {
+        this(UUID.randomUUID(), nombre, descripcion, permisos);
+    }
+
+    public RolEntidad(UUID id, String nombre, String descripcion, Set<Permiso> permisos) {
+        this.id = id;
         this.nombre = nombre;
         this.descripcion = descripcion;
         this.permisos = new HashSet<>(permisos);
