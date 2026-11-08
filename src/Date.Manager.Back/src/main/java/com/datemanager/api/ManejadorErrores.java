@@ -13,6 +13,11 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -46,6 +51,29 @@ public class ManejadorErrores extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ErrorNegocio.class)
     ResponseEntity<Object> errorNegocio(ErrorNegocio e) {
         return respuesta(e.codigo(), e.getMessage(), null);
+    }
+
+    /**
+     * Denegación de {@code @PreAuthorize} (u otra lanzada dentro de un controlador): 403 si hay sesión;
+     * si la petición es anónima, lo que falta es iniciar sesión (401), igual que en la cadena de filtros.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<Object> accesoDenegado(AccessDeniedException e) {
+        Authentication autenticacion = SecurityContextHolder.getContext().getAuthentication();
+        if (autenticacion == null || autenticacion instanceof AnonymousAuthenticationToken
+                || !autenticacion.isAuthenticated()) {
+            return noAutenticado();
+        }
+        return respuesta(CodigoError.SIN_PERMISO, RespuestasSeguridad.MENSAJE_SIN_PERMISO, null);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    ResponseEntity<Object> autenticacion(AuthenticationException e) {
+        return noAutenticado();
+    }
+
+    private static ResponseEntity<Object> noAutenticado() {
+        return respuesta(CodigoError.NO_AUTENTICADO, RespuestasSeguridad.MENSAJE_NO_AUTENTICADO, null);
     }
 
     @ExceptionHandler(Exception.class)
@@ -90,14 +118,19 @@ public class ManejadorErrores extends ResponseEntityExceptionHandler {
         };
     }
 
-    private static ResponseEntity<Object> respuesta(CodigoError codigo, String mensaje, Map<String, String> campos) {
-        HttpStatus estado = estadoHttp(codigo);
-        ProblemDetail problema = ProblemDetail.forStatusAndDetail(estado, mensaje);
+    /** Cuerpo de error común; también lo usa {@link RespuestasSeguridad} fuera de Spring MVC. */
+    static ProblemDetail problema(CodigoError codigo, String mensaje, Map<String, String> campos) {
+        ProblemDetail problema = ProblemDetail.forStatusAndDetail(estadoHttp(codigo), mensaje);
         problema.setProperty("codigo", codigo.name());
         problema.setProperty("mensaje", mensaje);
         if (campos != null) {
             problema.setProperty("campos", campos);
         }
-        return ResponseEntity.status(estado).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problema);
+        return problema;
+    }
+
+    private static ResponseEntity<Object> respuesta(CodigoError codigo, String mensaje, Map<String, String> campos) {
+        return ResponseEntity.status(estadoHttp(codigo)).contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(problema(codigo, mensaje, campos));
     }
 }
