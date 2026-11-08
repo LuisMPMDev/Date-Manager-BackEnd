@@ -15,7 +15,12 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -24,6 +29,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * API sin estado con token Bearer (JWT). Sin token: login, {@code /api/publico/**} y Swagger (solo si está
  * activo, es decir, en {@code dev}); todo lo demás exige token. Los permisos se comprueban por operación con
  * {@code @PreAuthorize("@permisos.tiene(...)")}.
+ * <p>
+ * En el login y en la zona del cliente ni siquiera se lee la cabecera {@code Authorization}: un token vencido del
+ * personal que quedó en el mismo navegador no debe romper el login ni la zona del cliente con un 401.
  */
 @Configuration
 @EnableMethodSecurity
@@ -33,6 +41,10 @@ public class ConfiguracionSeguridad {
     SecurityFilterChain cadenaSeguridad(HttpSecurity http, RespuestasSeguridad respuestas,
             ConvertidorToken convertidor, @Value("${springdoc.swagger-ui.enabled:false}") boolean swagger)
             throws Exception {
+        PathPatternRequestMatcher.Builder patron = PathPatternRequestMatcher.withDefaults();
+        RequestMatcher sinLeerToken = new OrRequestMatcher(
+                patron.matcher(HttpMethod.POST, "/api/auth/login"),
+                patron.matcher("/api/publico/**"));
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> { })
@@ -49,6 +61,7 @@ public class ConfiguracionSeguridad {
                     rutas.anyRequest().authenticated();
                 })
                 .oauth2ResourceServer(recurso -> recurso
+                        .bearerTokenResolver(resolutorToken(sinLeerToken))
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(convertidor))
                         .authenticationEntryPoint(respuestas)
                         .accessDeniedHandler(respuestas))
@@ -56,6 +69,12 @@ public class ConfiguracionSeguridad {
                         .authenticationEntryPoint(respuestas)
                         .accessDeniedHandler(respuestas));
         return http.build();
+    }
+
+    /** Como el de Spring, pero sin token en las rutas de {@code sinLeerToken}. */
+    static BearerTokenResolver resolutorToken(RequestMatcher sinLeerToken) {
+        DefaultBearerTokenResolver normal = new DefaultBearerTokenResolver();
+        return peticion -> sinLeerToken.matches(peticion) ? null : normal.resolve(peticion);
     }
 
     @Bean

@@ -13,6 +13,7 @@ import com.datemanager.dominio.Permisos;
 import com.datemanager.dominio.Usuario;
 import com.datemanager.dominio.Validaciones;
 import com.datemanager.infraestructura.persistencia.BloqueoAdministracion;
+import com.datemanager.infraestructura.persistencia.EnlaceRepositorio;
 import com.datemanager.infraestructura.persistencia.RolEntidad;
 import com.datemanager.infraestructura.persistencia.RolRepositorio;
 import com.datemanager.infraestructura.persistencia.UsuarioEntidad;
@@ -28,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class UsuariosServicio {
 
     private static final String MENSAJE_USUARIO_REPETIDO = "Ya existe otro usuario con ese nombre de usuario.";
+    private static final String MENSAJE_CREO_ENLACES =
+            "No se puede eliminar un usuario que creó enlaces de invitación.";
     /** BCrypt solo usa los primeros 72 bytes de la clave; más allá, otra clave valdría igual. */
     private static final int MAX_BYTES_CLAVE = 72;
 
@@ -47,10 +50,12 @@ public class UsuariosServicio {
     private final PasswordEncoder codificador;
     private final BloqueoAdministracion bloqueo;
     private final ProteccionGestores gestores;
+    private final EnlaceRepositorio enlaces;
 
     public UsuariosServicio(UsuarioRepositorio usuarios, RolRepositorio roles, PasswordEncoder codificador,
-            BloqueoAdministracion bloqueo, ProteccionGestores gestores) {
+            BloqueoAdministracion bloqueo, ProteccionGestores gestores, EnlaceRepositorio enlaces) {
         this.gestores = gestores;
+        this.enlaces = enlaces;
         this.usuarios = usuarios;
         this.roles = roles;
         this.codificador = codificador;
@@ -143,8 +148,18 @@ public class UsuariosServicio {
             throw new ErrorNegocio(CodigoError.CONFLICTO, ProteccionGestores.MENSAJE);
         }
         exigirQuePuedaTratarloElActor(permisosDe(actor(actorId)), objetivo);
-        usuarios.delete(objetivo);
-        usuarios.flush();
+        // Después de las protecciones de siempre (mismo orden y mismos códigos que antes): los enlaces guardan
+        // quién los creó y la llave foránea no tiene cascada.
+        if (enlaces.existsByCreadoPor(objetivo.getId())) {
+            throw new ErrorNegocio(CodigoError.CONFLICTO, MENSAJE_CREO_ENLACES);
+        }
+        try {
+            usuarios.delete(objetivo);
+            usuarios.flush();
+        } catch (DataIntegrityViolationException e) {
+            // Un enlace creado por él justo ahora (crear enlaces no toma el bloqueo de administración).
+            throw new ErrorNegocio(CodigoError.CONFLICTO, MENSAJE_CREO_ENLACES);
+        }
     }
 
     /** Cambiar de rol a quien hoy es el último con {@code gestionar_roles} solo vale si el nuevo rol también lo da. */

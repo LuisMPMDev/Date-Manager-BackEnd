@@ -163,7 +163,16 @@ class ReservaConcurrenteTest extends PruebaIntegracion {
     @Test
     void reservarGuardaElEnlace() {
         UUID servicio = crearServicio(30);
+        // cita.enlace_id es una llave foránea (V5): el enlace tiene que existir.
+        UUID rol = UUID.randomUUID();
+        jdbc.update("INSERT INTO rol (id, nombre, descripcion) VALUES (?, 'R', '')", rol);
+        UUID usuario = UUID.randomUUID();
+        jdbc.update("INSERT INTO usuario (id, nombre, apellido, correo, telefono, usuario, clave_hash, rol_id) "
+                + "VALUES (?, 'U', 'U', 'u@x.co', '1', 'u', 'x', ?)", usuario, rol);
         UUID enlace = UUID.randomUUID();
+        jdbc.update("INSERT INTO enlace_invitacion (id, codigo, creado_por, creado_en, vence_en, usos) "
+                + "VALUES (?, 'AAAAAAAAAAAAAAAAAAAAAA', ?, '2026-11-09T13:00:00', '2026-11-10T13:00:00', 0)",
+                enlace, usuario);
 
         citas.reservar(servicio, MANANA, LocalTime.of(9, 0), cliente(1), enlace);
 
