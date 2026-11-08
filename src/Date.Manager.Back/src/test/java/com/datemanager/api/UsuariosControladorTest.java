@@ -362,6 +362,34 @@ class UsuariosControladorTest extends PruebaPanel {
     }
 
     @Test
+    void sinGestionarRolesNoSePuedeEliminarAUnUsuarioConUnRolMasPoderoso() throws Exception {
+        UUID gestor = actorSinGestionarRoles("gestionar_usuarios", "ver_citas");
+        UUID otroAdmin = crearUsuario("otro-admin", rolAdmin); // queda otro gestor: no es el último
+
+        eliminar(USUARIOS + otroAdmin, gestor)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo").value("SIN_PERMISO"));
+
+        assertThat(filasConUsuario("otro-admin")).isEqualTo(1);
+    }
+
+    @Test
+    void sinGestionarRolesNoSePuedeDegradarAUnSuperiorNiCambiarleLaClaveEnLaMismaPeticion() throws Exception {
+        UUID gestor = actorSinGestionarRoles("gestionar_usuarios", "ver_citas");
+        UUID otroAdmin = crearUsuario("otro-admin", rolAdmin);
+        String hashAntes = hashDe(otroAdmin);
+
+        // El nuevo rol (Recepción) es subconjunto del actor, pero el rol actual del objetivo no lo es.
+        guardar(USUARIOS + otroAdmin, gestor, cuerpo("otro-admin", rolRecepcion, "toma-el-control"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo").value("SIN_PERMISO"));
+
+        assertThat(hashDe(otroAdmin)).isEqualTo(hashAntes);
+        assertThat(jdbc.queryForObject("SELECT rol_id FROM usuario WHERE id = ?", UUID.class, otroAdmin))
+                .isEqualTo(rolAdmin);
+    }
+
+    @Test
     void sePuedeEliminarAUnGestorDeRolesSiQuedaOtro() throws Exception {
         UUID otroAdmin = crearUsuario("otro-admin", rolAdmin);
 

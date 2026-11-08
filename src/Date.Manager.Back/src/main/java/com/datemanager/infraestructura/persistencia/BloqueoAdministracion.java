@@ -28,9 +28,13 @@ public class BloqueoAdministracion {
     @Transactional(propagation = Propagation.MANDATORY)
     public void bloquear() {
         Integer resultado = jdbc.queryForObject("""
-                -- El driver abre la transacción de forma implícita (con la primera consulta); sp_getapplock con
-                -- dueño «Transaction» exige que ya exista una, así que se abre aquí si aún no hay.
-                IF @@TRANCOUNT = 0 BEGIN TRANSACTION;
+                -- sp_getapplock con dueño «Transaction» exige una transacción abierta. El driver trabaja con
+                -- IMPLICIT_TRANSACTIONS ON: ahí BEGIN TRAN con contador 0 lo sube a 2 y su único COMMIT no cerraría
+                -- nada. Si quedó en 2, se baja a 1 para que un solo commit lo cierre (la misma jugada que el driver).
+                IF @@TRANCOUNT = 0 BEGIN
+                    BEGIN TRANSACTION;
+                    IF @@TRANCOUNT = 2 COMMIT TRANSACTION;
+                END;
                 DECLARE @r INT;
                 EXEC @r = sp_getapplock @Resource = N'datemanager.administracion', @LockMode = N'Exclusive',
                      @LockOwner = N'Transaction', @LockTimeout = %d;

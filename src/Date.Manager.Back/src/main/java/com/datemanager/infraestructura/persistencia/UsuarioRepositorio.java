@@ -14,6 +14,9 @@ public interface UsuarioRepositorio extends JpaRepository<UsuarioEntidad, UUID> 
 
     List<UsuarioEntidad> findByRolId(UUID rolId);
 
+    /** Usuarios cuyo rol está en {@code rolIds} (la colección no puede ir vacía). */
+    long countByRolIdIn(Collection<UUID> rolIds);
+
     /** Usuarios distintos de {@code id} cuyo rol está en {@code rolIds} (la colección no puede ir vacía). */
     long countByIdNotAndRolIdIn(UUID id, Collection<UUID> rolIds);
 }

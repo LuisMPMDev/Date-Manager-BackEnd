@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import com.datemanager.dominio.CodigoError;
 import com.datemanager.dominio.ErrorNegocio;
@@ -28,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class UsuariosServicio {
 
-    static final String MENSAJE_ULTIMO_GESTOR = "Debe quedar al menos un usuario que pueda gestionar roles.";
     private static final String MENSAJE_USUARIO_REPETIDO = "Ya existe otro usuario con ese nombre de usuario.";
     /** BCrypt solo usa los primeros 72 bytes de la clave; más allá, otra clave valdría igual. */
     private static final int MAX_BYTES_CLAVE = 72;
@@ -48,9 +46,11 @@ public class UsuariosServicio {
     private final RolRepositorio roles;
     private final PasswordEncoder codificador;
     private final BloqueoAdministracion bloqueo;
+    private final ProteccionGestores gestores;
 
     public UsuariosServicio(UsuarioRepositorio usuarios, RolRepositorio roles, PasswordEncoder codificador,
-            BloqueoAdministracion bloqueo) {
+            BloqueoAdministracion bloqueo, ProteccionGestores gestores) {
+        this.gestores = gestores;
         this.usuarios = usuarios;
         this.roles = roles;
         this.codificador = codificador;
@@ -85,8 +85,7 @@ public class UsuariosServicio {
         }
 
         // Escalada: sin gestionar_roles solo se asignan roles que no excedan los permisos del propio actor.
-        Set<Permiso> permisosDelActor = roles.findById(actor.getRolId()).map(RolEntidad::getPermisos)
-                .orElse(Set.of());
+        Set<Permiso> permisosDelActor = permisosDe(actor);
         if (!Permisos.puedeAsignarRol(permisosDelActor, rolDestino.getPermisos())) {
             throw new ErrorNegocio(CodigoError.SIN_PERMISO,
                     "No puedes asignar un rol con más permisos que los tuyos.");
@@ -108,6 +107,9 @@ public class UsuariosServicio {
         } else {
             if (!existente.getRolId().equals(rolDestino.getId())) {
                 protegerAlUltimoGestor(existente, rolDestino);
+                // Tampoco se toca a quien hoy tiene un rol más poderoso que el del actor: bajarle el rol y a la vez
+                // cambiarle la clave sería adueñarse de su cuenta. Se lee su rol ACTUAL, ya bajo el bloqueo.
+                exigirQuePuedaTratarloElActor(permisosDelActor, existente);
             }
             existente.setNombre(datos.nombre().strip());
             existente.setApellido(datos.apellido().strip());
@@ -136,32 +138,35 @@ public class UsuariosServicio {
         if (objetivo.getId().equals(actorId)) {
             throw new ErrorNegocio(CodigoError.CONFLICTO, "No puedes eliminar tu propio usuario.");
         }
-        boolean esGestorDeRoles = roles.findById(objetivo.getRolId())
-                .map(rol -> rol.getPermisos().contains(Permiso.GESTIONAR_ROLES)).orElse(false);
-        if (esGestorDeRoles && otrosGestoresDeRoles(objetivo.getId()) == 0) {
-            throw new ErrorNegocio(CodigoError.CONFLICTO, MENSAJE_ULTIMO_GESTOR);
+        boolean esGestorDeRoles = ProteccionGestores.gestionaRoles(permisosDe(objetivo));
+        if (esGestorDeRoles && gestores.otrosGestores(objetivo.getId()) == 0) {
+            throw new ErrorNegocio(CodigoError.CONFLICTO, ProteccionGestores.MENSAJE);
         }
+        exigirQuePuedaTratarloElActor(permisosDe(actor(actorId)), objetivo);
         usuarios.delete(objetivo);
         usuarios.flush();
     }
 
     /** Cambiar de rol a quien hoy es el último con {@code gestionar_roles} solo vale si el nuevo rol también lo da. */
     private void protegerAlUltimoGestor(UsuarioEntidad existente, RolEntidad rolNuevo) {
-        boolean eraGestor = roles.findById(existente.getRolId())
-                .map(rol -> rol.getPermisos().contains(Permiso.GESTIONAR_ROLES)).orElse(false);
-        boolean seguiraSiendoGestor = rolNuevo.getPermisos().contains(Permiso.GESTIONAR_ROLES);
-        if (eraGestor && !seguiraSiendoGestor && otrosGestoresDeRoles(existente.getId()) == 0) {
-            throw new ErrorNegocio(CodigoError.CONFLICTO, MENSAJE_ULTIMO_GESTOR);
+        boolean eraGestor = ProteccionGestores.gestionaRoles(permisosDe(existente));
+        boolean seguiraSiendoGestor = ProteccionGestores.gestionaRoles(rolNuevo.getPermisos());
+        if (eraGestor && !seguiraSiendoGestor && gestores.otrosGestores(existente.getId()) == 0) {
+            throw new ErrorNegocio(CodigoError.CONFLICTO, ProteccionGestores.MENSAJE);
         }
     }
 
-    /** Cuántos usuarios, sin contar a {@code excluido}, tienen hoy {@code gestionar_roles} por su rol. */
-    private long otrosGestoresDeRoles(UUID excluido) {
-        Set<UUID> rolesGestores = roles.findAll().stream()
-                .filter(rol -> rol.getPermisos().contains(Permiso.GESTIONAR_ROLES))
-                .map(RolEntidad::getId)
-                .collect(Collectors.toSet());
-        return rolesGestores.isEmpty() ? 0 : usuarios.countByIdNotAndRolIdIn(excluido, rolesGestores);
+    /** Sin {@code gestionar_roles}, no se edita ni elimina a quien hoy tiene un rol con más permisos que el actor. */
+    private void exigirQuePuedaTratarloElActor(Set<Permiso> permisosDelActor, UsuarioEntidad objetivo) {
+        if (!Permisos.puedeAsignarRol(permisosDelActor, permisosDe(objetivo))) {
+            throw new ErrorNegocio(CodigoError.SIN_PERMISO,
+                    "No puedes modificar a un usuario cuyo rol tiene más permisos que los tuyos.");
+        }
+    }
+
+    /** Permisos del rol ACTUAL del usuario, leídos ahora (bajo el bloqueo), no los del token. */
+    private Set<Permiso> permisosDe(UsuarioEntidad usuario) {
+        return roles.findById(usuario.getRolId()).map(RolEntidad::getPermisos).orElse(Set.of());
     }
 
     private static String textoOpcional(String texto) {

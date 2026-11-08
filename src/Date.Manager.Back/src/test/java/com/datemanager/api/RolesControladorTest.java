@@ -8,9 +8,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -229,5 +234,38 @@ class RolesControladorTest extends PruebaPanel {
                 .andExpect(status().isForbidden());
         eliminar(ROLES + rolAdmin, gestor).andExpect(status().isForbidden());
         obtener("/api/panel/permisos", gestor).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void dosGestoresQuitandoseElPermisoMutuamenteALosRolesDelOtroNoDejanAlSistemaSinGestorDeRoles()
+            throws Exception {
+        // Solo A (rol X) y B (rol Y) gestionan roles. A edita Y y B edita X a la vez: ninguno toca su propio rol,
+        // así que ninguna petición sola viola la regla del propio rol, pero juntas dejarían a cero gestores.
+        jdbc.update("DELETE FROM usuario WHERE id = ?", admin);
+        UUID rolX = crearRol("X", "gestionar_roles");
+        UUID rolY = crearRol("Y", "gestionar_roles");
+        UUID a = crearUsuario("a", rolX);
+        UUID b = crearUsuario("b", rolY);
+        Map<String, Object> sinPermiso = Map.of("nombre", "Sin", "permisos", List.of("ver_panel"));
+
+        ExecutorService hilos = Executors.newFixedThreadPool(2);
+        List<Integer> estados = new ArrayList<>();
+        try {
+            List<Callable<Integer>> tareas = List.of(
+                    () -> guardar(ROLES + rolY, a, sinPermiso).andReturn().getResponse().getStatus(),
+                    () -> guardar(ROLES + rolX, b, sinPermiso).andReturn().getResponse().getStatus());
+            for (Future<Integer> futuro : hilos.invokeAll(tareas)) {
+                estados.add(futuro.get());
+            }
+        } finally {
+            hilos.shutdownNow();
+        }
+
+        assertThat(estados).filteredOn(estado -> estado == 200).hasSize(1);
+        assertThat(estados).filteredOn(estado -> estado != 200).allMatch(estado -> estado == 403 || estado == 409);
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM usuario u
+                WHERE EXISTS (SELECT 1 FROM rol_permiso rp WHERE rp.rol_id = u.rol_id AND rp.permiso = 'gestionar_roles')
+                """, Integer.class)).isEqualTo(1);
     }
 }

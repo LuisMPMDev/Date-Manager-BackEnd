@@ -27,8 +27,11 @@ public class RolesServicio {
     private final RolRepositorio roles;
     private final UsuarioRepositorio usuarios;
     private final BloqueoAdministracion bloqueo;
+    private final ProteccionGestores gestores;
 
-    public RolesServicio(RolRepositorio roles, UsuarioRepositorio usuarios, BloqueoAdministracion bloqueo) {
+    public RolesServicio(RolRepositorio roles, UsuarioRepositorio usuarios, BloqueoAdministracion bloqueo,
+            ProteccionGestores gestores) {
+        this.gestores = gestores;
         this.roles = roles;
         this.usuarios = usuarios;
         this.bloqueo = bloqueo;
@@ -43,13 +46,20 @@ public class RolesServicio {
      * Crea el rol con ese id si no existe; si existe, lo reemplaza. Los permisos se guardan con sus
      * dependencias ({@code gestionar_citas} o {@code atender_citas} implican {@code ver_citas}).
      *
-     * <p>No hace falta comprobar aquí «no dejar al sistema sin gestor de roles»: para llegar hasta aquí el actor
-     * tiene {@code gestionar_roles} en su propio rol, así que mientras ese rol lo conserve (lo que impone
-     * {@link Permisos#validarCambioRol}) siempre queda al menos un usuario con ese permiso, él mismo.
+     * <p>La regla «no dejar al sistema sin quien gestione roles» se comprueba aquí con el estado fresco, bajo el
+     * bloqueo: el permiso del actor ya se verificó en el filtro, antes de esperar el bloqueo, y otra petición pudo
+     * quitárselo (o quitárselo a otro rol) entretanto. Por eso se vuelve a leer su rol y se cuenta quién seguiría
+     * gestionando roles después del cambio.
      */
     @Transactional
     public Rol guardar(UUID id, String nombre, String descripcion, Set<Permiso> permisos, UUID actorId) {
         bloqueo.bloquear();
+        UsuarioEntidad actor = actor(actorId);
+        boolean actorGestionaRoles = roles.findById(actor.getRolId())
+                .map(rol -> ProteccionGestores.gestionaRoles(rol.getPermisos())).orElse(false);
+        if (!actorGestionaRoles) {
+            throw new ErrorNegocio(CodigoError.SIN_PERMISO, "No tienes permiso para realizar esta acción.");
+        }
         Set<Permiso> conDependencias = Permisos.conDependencias(permisos);
         String nombreFinal = nombre.strip();
         String descripcionFinal = descripcion == null ? "" : descripcion.strip();
@@ -61,10 +71,13 @@ public class RolesServicio {
         RolEntidad entidad = existente.get();
         Rol antes = entidad.aDominio();
         Rol despues = new Rol(id, nombreFinal, descripcionFinal, conDependencias);
-        UsuarioEntidad actor = actor(actorId);
         Permisos.validarCambioRol(actor.getRolId(), antes, despues).ifPresent(mensaje -> {
             throw new ErrorNegocio(CodigoError.CONFLICTO, mensaje);
         });
+        if (ProteccionGestores.gestionaRoles(antes.permisos()) && !ProteccionGestores.gestionaRoles(conDependencias)
+                && gestores.gestoresTrasEditarRol(id, conDependencias) == 0) {
+            throw new ErrorNegocio(CodigoError.CONFLICTO, ProteccionGestores.MENSAJE);
+        }
         entidad.setNombre(nombreFinal);
         entidad.setDescripcion(descripcionFinal);
         entidad.setPermisos(conDependencias);
