@@ -19,7 +19,7 @@ $puerto    = 1433
 $login     = 'datemanager_app'
 $raiz      = Split-Path -Parent $PSScriptRoot          # src/Date.Manager.Back
 
-Write-Host "Se va a modificar la instancia .\$instancia: TCP/IP en el puerto $puerto, autenticación mixta y reinicio del servicio." -ForegroundColor Yellow
+Write-Host "Se va a modificar la instancia .\${instancia}: TCP/IP en el puerto $puerto, autenticación mixta y reinicio del servicio." -ForegroundColor Yellow
 if ((Read-Host 'Escribe SI para continuar') -ne 'SI') { Write-Host 'Cancelado, no se cambió nada.'; return }
 
 $segura = Read-Host "Contraseña nueva para el login $login (mínimo 12 caracteres, con mayúsculas, minúsculas y números; sin apóstrofos)" -AsSecureString
