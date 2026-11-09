@@ -1,4 +1,4 @@
-import { Permiso, Rol, Usuario } from '../../core/models';
+import { Permiso, Rol, Usuario, UsuarioForm } from '../../core/models';
 import { conDependencias } from '../../core/permisos';
 import { esCorreoValido } from '../../core/validaciones';
 import { normalizar } from '../clientes/clientes-logica';
@@ -10,7 +10,7 @@ export const MENSAJE_ULTIMO_GESTOR = 'Debe quedar al menos un usuario que pueda 
  * Mensaje de error en español si el usuario no se puede guardar; null si es válido.
  * Al editar (esNuevo = false) la clave puede ir vacía: significa conservar la actual.
  */
-export function validarUsuario(u: Usuario, todos: Usuario[], roles: Rol[], esNuevo: boolean): string | null {
+export function validarUsuario(u: UsuarioForm, todos: Usuario[], roles: Rol[], esNuevo: boolean): string | null {
   if (!u.nombre.trim()) return 'Escribe el nombre.';
   if (!u.apellido.trim()) return 'Escribe el apellido.';
   const usuario = u.usuario.trim();

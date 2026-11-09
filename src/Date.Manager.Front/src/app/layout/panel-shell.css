@@ -78,16 +78,6 @@ nav {
   font-weight: 600;
 }
 
-.pregunta {
-  margin: 0;
-  padding: 0 8px;
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--blanco);
-  white-space: normal;
-  max-width: 190px;
-}
-
 .accion:hover {
   background: rgba(255, 255, 255, 0.1);
 }

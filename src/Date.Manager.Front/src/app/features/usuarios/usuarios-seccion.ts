@@ -2,7 +2,7 @@ import {
   afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, input, signal,
 } from '@angular/core';
 import { AgendaRepo } from '../../core/agenda-repo';
-import { Rol, Usuario } from '../../core/models';
+import { Rol, Usuario, UsuarioForm } from '../../core/models';
 import { SesionService } from '../../core/sesion';
 import { nuevoId } from '../servicios/servicios-borrador';
 import { motivoNoCambiarRol, motivoNoEliminarUsuario, validarUsuario } from './usuarios-logica';
@@ -21,11 +21,12 @@ export class UsuariosSeccionComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
-  readonly usuarios = input.required<Usuario[]>();
+  /** La lista llega sin clave (la API no la devuelve); el tipo permite la clave que el repositorio en memoria aún conserva. */
+  readonly usuarios = input.required<UsuarioForm[]>();
   readonly roles = input.required<Rol[]>();
 
   /** Copia del usuario que se está creando o editando: la tabla no cambia hasta guardar. */
-  protected readonly borrador = signal<Usuario | null>(null);
+  protected readonly borrador = signal<UsuarioForm | null>(null);
   protected readonly confirmando = signal<string | null>(null);
   protected readonly guardando = signal(false);
   protected readonly aviso = signal('');
@@ -48,7 +49,7 @@ export class UsuariosSeccionComponent {
   private abiertoDesde: HTMLElement | null = null;
 
   protected nuevo(evento: Event): void {
-    const vacio: Usuario = { id: nuevoId('usr'), nombre: '', apellido: '', correo: '', telefono: '', usuario: '', clave: '', rolId: '' };
+    const vacio: UsuarioForm = { id: nuevoId('usr'), nombre: '', apellido: '', correo: '', telefono: '', usuario: '', clave: '', rolId: '' };
     this.abrir(vacio, evento);
   }
 
@@ -75,7 +76,7 @@ export class UsuariosSeccionComponent {
     const b = this.borrador();
     if (!b || this.guardando()) return;
     const original = this.usuarios().find(u => u.id === b.id);
-    const usuario: Usuario = {
+    const usuario: UsuarioForm = {
       ...b,
       nombre: b.nombre.trim(), apellido: b.apellido.trim(), usuario: b.usuario.trim(),
       correo: b.correo.trim(), telefono: b.telefono.trim(),
@@ -153,7 +154,7 @@ export class UsuariosSeccionComponent {
     }
   }
 
-  private abrir(borrador: Usuario, evento: Event): void {
+  private abrir(borrador: UsuarioForm, evento: Event): void {
     this.abiertoDesde = evento.currentTarget as HTMLElement;
     this.aviso.set('');
     this.error.set('');

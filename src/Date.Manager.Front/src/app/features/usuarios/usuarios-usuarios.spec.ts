@@ -2,6 +2,7 @@ import {
   alerta, aviso, boton, botonDe, campo, celdas, configurar, crear, elegir, escribir, fijarPermisos, fila, filasDe,
   pulsar, repo, seccion, sesion,
 } from './usuarios.pruebas';
+import { UsuarioForm } from '../../core/models';
 
 const usuarios = (el: HTMLElement) => seccion(el, 'usuarios');
 
@@ -118,14 +119,14 @@ describe('Usuarios y roles: sección Usuarios', () => {
       await pulsar(fixture, botonDe(s, 'Editar usuario Andrés Pardo'));
       await llenar(s, { nombre: 'Andrés Felipe' });
       await pulsar(fixture, boton(s, 'Guardar usuario'));
-      let andres = (await repo().usuarios()).find(u => u.id === 'usr-andres')!;
+      let andres = (await repo().usuarios()).find(u => u.id === 'usr-andres')! as UsuarioForm;
       expect(andres).toMatchObject({ nombre: 'Andrés Felipe', clave: 'demo123' });
       expect(celdas(fila(s, 'usr-andres'))[0]).toBe('Andrés Felipe');
 
       await pulsar(fixture, botonDe(s, 'Editar usuario Andrés Felipe Pardo'));
       await llenar(s, { clave: 'otra-clave' });
       await pulsar(fixture, boton(s, 'Guardar usuario'));
-      andres = (await repo().usuarios()).find(u => u.id === 'usr-andres')!;
+      andres = (await repo().usuarios()).find(u => u.id === 'usr-andres')! as UsuarioForm;
       expect(andres.clave).toBe('otra-clave');
     });
 
@@ -171,7 +172,7 @@ describe('Usuarios y roles: sección Usuarios', () => {
       await llenar(s, { nombre: 'Marta Elena' });
       await pulsar(fixture, boton(s, 'Guardar usuario'));
       expect(sesion().usuario()?.nombre).toBe('Marta Elena');
-      expect(sessionStorage.getItem('datemanager.sesion.v1')).not.toContain('demo123');
+      expect(JSON.stringify({ ...sessionStorage })).not.toContain('demo123'); // la sesión solo guarda el token
     });
   });
 

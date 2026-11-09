@@ -1,9 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AgendaRepo } from '../../core/agenda-repo';
+import { AuthApi } from '../../core/auth-api';
 import { DemoAgendaRepo } from '../../core/demo-agenda-repo';
 import { RELOJ } from '../../core/errores';
 import { Permiso, Usuario } from '../../core/models';
 import { SesionService } from '../../core/sesion';
+import { AuthApiDemo, rolDe } from '../../core/sesion.pruebas';
 import { UsuariosComponent } from './usuarios';
 
 /** Ayudas compartidas por las pruebas de usuarios y roles (sin pruebas propias). */
@@ -18,6 +20,7 @@ export async function configurar(repo: typeof DemoAgendaRepo = DemoAgendaRepo): 
     providers: [
       { provide: RELOJ, useValue: () => AHORA },
       { provide: AgendaRepo, useClass: repo },
+      { provide: AuthApi, useClass: AuthApiDemo },
     ],
   }).compileComponents();
 }
@@ -46,7 +49,7 @@ export async function crear(opciones: { usuario?: string; antes?: () => Promise<
   await opciones.antes?.();
   const [usuarios, roles] = await Promise.all([repo().usuarios(), repo().roles()]);
   const quien = usuarios.find(u => u.usuario === (opciones.usuario ?? 'marta'))!;
-  sesion().iniciar(quien, roles);
+  sesion().iniciar(quien, rolDe(quien, roles));
   const fixture = TestBed.createComponent(UsuariosComponent);
   fixture.detectChanges();
   await esperar(fixture);

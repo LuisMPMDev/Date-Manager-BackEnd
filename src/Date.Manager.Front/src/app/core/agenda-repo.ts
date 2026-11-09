@@ -1,5 +1,5 @@
 import { Signal } from '@angular/core';
-import { Cita, Cliente, Rol, Servicio, Usuario } from './models';
+import { Cita, Cliente, Rol, Servicio, Usuario, UsuarioForm } from './models';
 
 export interface DatosCliente { nombre: string; apellido: string; telefono: string; correo: string }
 
@@ -19,7 +19,7 @@ export abstract class AgendaRepo {
   abstract guardarRol(rol: Rol, actorId: string): Promise<Rol>;
   abstract eliminarRol(id: string): Promise<void>;
   abstract usuarios(): Promise<Usuario[]>;
-  abstract guardarUsuario(u: Usuario): Promise<Usuario>;
+  abstract guardarUsuario(u: UsuarioForm): Promise<Usuario>;
   abstract eliminarUsuario(id: string): Promise<void>;
   abstract iniciarSesion(usuario: string, clave: string): Promise<Usuario | null>;
   abstract reiniciar(): Promise<void>;

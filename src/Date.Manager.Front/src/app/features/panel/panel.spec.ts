@@ -4,6 +4,7 @@ import { Servicio } from '../../core/models';
 import { alertas, citasPorDia } from '../../core/metricas';
 import { sembrar } from '../../core/seed';
 import { SesionService } from '../../core/sesion';
+import { rolDe } from '../../core/sesion.pruebas';
 import { aFechaISO, sumarDias } from '../../shared/formato';
 import {
   AHORA, botonesAlerta, celdas, configurar, crear, DIA_MS, esperar, filasProximas, fijarReloj, GraficaDoble, kpi, repo,
@@ -180,7 +181,7 @@ describe('PanelComponent', () => {
 
       const datos = sembrar(AHORA);
       const marta = datos.usuarios.find(u => u.usuario === 'marta')!;
-      TestBed.inject(SesionService).iniciar(marta, [{ ...datos.roles[0], permisos: ['ver_panel'] }]);
+      TestBed.inject(SesionService).iniciar(marta, { ...rolDe(marta, datos.roles), permisos: ['ver_panel'] });
       await esperar(fixture);
 
       expect(filasProximas(el).length).toBeGreaterThan(0);

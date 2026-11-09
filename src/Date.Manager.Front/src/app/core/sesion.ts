@@ -1,103 +1,111 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
-import { AgendaRepo } from './agenda-repo';
+import { DestroyRef, inject, Injectable, signal } from '@angular/core';
+import { Router } from '@angular/router';
+import { ApiError } from './api-error';
+import { AuthApi, SesionActual } from './auth-api';
 import { Permiso, Rol, Usuario } from './models';
 import { puede } from './permisos';
+import { SesionExpirada } from './sesion-expirada';
+import { TokenStore } from './token-store';
 
-const CLAVE_SESION = 'datemanager.sesion.v1';
+const SESION_VENCIDA = 'Tu sesión venció. Inicia sesión de nuevo.';
+const USUARIO_AUSENTE = 'Tu usuario ya no existe.';
 
-function tieneForma(valor: unknown): valor is Usuario {
-  if (typeof valor !== 'object' || valor === null || Array.isArray(valor)) return false;
-  const u = valor as Record<string, unknown>;
-  return typeof u['id'] === 'string' && typeof u['rolId'] === 'string';
-}
-
-/** Devuelve la sesión guardada si tiene la forma esperada; si no, la descarta. */
-function leerGuardado(): Usuario | null {
-  try {
-    const crudo = sessionStorage.getItem(CLAVE_SESION);
-    if (!crudo) return null;
-    const valor: unknown = JSON.parse(crudo);
-    if (tieneForma(valor)) return valor;
-    sessionStorage.removeItem(CLAVE_SESION);
-  } catch {
-    try {
-      sessionStorage.removeItem(CLAVE_SESION);
-    } catch {
-      // sin almacenamiento disponible
-    }
-  }
-  return null;
-}
-
-function escribirGuardado(usuario: Usuario | null): void {
-  try {
-    // la clave nunca se guarda en el navegador
-    if (usuario) sessionStorage.setItem(CLAVE_SESION, JSON.stringify({ ...usuario, clave: '' }));
-    else sessionStorage.removeItem(CLAVE_SESION);
-  } catch {
-    // sin almacenamiento disponible: la sesión vive solo en memoria
-  }
-}
-
+/**
+ * Sesión del negocio: quién es el usuario y qué rol (y permisos) tiene. Lo único que sobrevive a una
+ * recarga es el token (TokenStore); al cargar se restaura preguntando a la API con GET /auth/yo.
+ */
 @Injectable({ providedIn: 'root' })
 export class SesionService {
-  private readonly repo = inject(AgendaRepo);
-  private readonly roles = signal<Rol[]>([]);
+  private readonly auth = inject(AuthApi);
+  private readonly tokens = inject(TokenStore);
+  private readonly router = inject(Router);
 
-  readonly usuario = signal<Usuario | null>(null);
-  readonly rol = computed(() => this.roles().find(r => r.id === this.usuario()?.rolId));
+  private readonly _usuario = signal<Usuario | null>(null);
+  private readonly _rol = signal<Rol | undefined>(undefined);
+  private readonly _aviso = signal<string | null>(null);
+
+  readonly usuario = this._usuario.asReadonly();
+  readonly rol = this._rol.asReadonly();
+  /** Motivo de un cierre forzado (sesión vencida, usuario borrado); lo muestra la pantalla de login. */
+  readonly aviso = this._aviso.asReadonly();
 
   /** Se resuelve cuando la sesión guardada en la pestaña ya se restauró (o no había ninguna). */
   readonly listo: Promise<void>;
 
+  /** Mientras se refresca, un 401 significa que el usuario de un token aún válido ya no existe. */
+  private refrescando = false;
+
   constructor() {
-    const guardado = leerGuardado();
-    if (!guardado) {
-      this.listo = Promise.resolve();
-      return;
-    }
-    this.usuario.set(guardado);
-    this.listo = this.repo
-      .roles()
-      .then(roles => {
-        // Si el usuario ya inició sesión de nuevo mientras tanto, esa sesión manda.
-        if (this.usuario()?.id === guardado.id) this.roles.set(roles);
-      })
-      .catch(() => this.cerrar());
+    // Se suscribe al construirse: un 401 antes de este punto se perdería.
+    const baja = inject(SesionExpirada).alExpirar(() => this.vencer(this.refrescando ? USUARIO_AUSENTE : SESION_VENCIDA));
+    inject(DestroyRef).onDestroy(baja);
+    this.listo = this.tokens.leer() ? this.restaurar() : Promise.resolve();
   }
 
-  iniciar(u: Usuario, roles: Rol[]): void {
-    this.roles.set(roles);
-    this.usuario.set(u);
-    escribirGuardado(u);
+  iniciar(usuario: Usuario, rol: Rol): void {
+    this._usuario.set(usuario);
+    this._rol.set(rol);
+    this._aviso.set(null);
   }
 
   /**
-   * Vuelve a leer roles y usuarios: si el rol o el usuario de la sesión cambiaron,
-   * el menú y los permisos se actualizan al instante. Si el usuario ya no existe, cierra la sesión.
+   * Vuelve a leer usuario, rol y permisos vigentes (GET /auth/yo): si cambiaron, el menú y los permisos
+   * se actualizan al instante. Si la API ya no reconoce al usuario, cierra la sesión.
    */
   async refrescar(): Promise<void> {
     const actual = this.usuario();
     if (!actual) return;
-    const [roles, usuarios] = await Promise.all([this.repo.roles(), this.repo.usuarios()]);
-    if (this.usuario()?.id !== actual.id) return; // la sesión cambió mientras esperábamos
-    const vigente = usuarios.find(u => u.id === actual.id);
-    if (!vigente) {
-      this.cerrar();
-      return;
+    this.refrescando = true;
+    try {
+      const vigente = await this.auth.yo();
+      if (this.usuario()?.id === actual.id) this.fijar(vigente); // si la sesión cambió mientras esperábamos, no manda
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401 && this.usuario()?.id === actual.id) this.vencer(USUARIO_AUSENTE);
+      throw e;
+    } finally {
+      this.refrescando = false;
     }
-    this.roles.set(roles);
-    this.usuario.set(vigente);
-    escribirGuardado(vigente);
   }
 
+  /** Cierre voluntario: borra el token y la sesión, sin aviso. */
   cerrar(): void {
-    this.usuario.set(null);
-    this.roles.set([]);
-    escribirGuardado(null);
+    this.vaciar();
+    this._aviso.set(null);
   }
 
   puede(p: Permiso): boolean {
     return puede(this.rol(), p);
+  }
+
+  private async restaurar(): Promise<void> {
+    try {
+      const vigente = await this.auth.yo();
+      if (!this.usuario()) this.fijar(vigente); // si el usuario ya inició sesión de nuevo, esa sesión manda
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        if (!this._aviso()) this.vencer(SESION_VENCIDA); // normalmente el interceptor ya avisó
+      } else if (!this.usuario()) {
+        // red caída o error del servidor: sin sesión por ahora, pero el token se conserva para reintentar
+        this._aviso.set(e instanceof ApiError ? e.message : null);
+      }
+    }
+  }
+
+  private fijar(s: SesionActual): void {
+    this._usuario.set(s.usuario);
+    this._rol.set(s.rol);
+  }
+
+  private vaciar(): void {
+    this.tokens.borrar();
+    this._usuario.set(null);
+    this._rol.set(undefined);
+  }
+
+  /** Cierre forzado: limpia, explica el motivo y manda a /login (una sola vez por vencimiento). */
+  private vencer(motivo: string): void {
+    this.vaciar();
+    this._aviso.set(motivo);
+    void this.router.navigateByUrl('/login');
   }
 }

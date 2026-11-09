@@ -1,10 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AgendaRepo } from '../../core/agenda-repo';
+import { AuthApi } from '../../core/auth-api';
 import { DemoAgendaRepo } from '../../core/demo-agenda-repo';
 import { RELOJ } from '../../core/errores';
 import { Cita, Permiso } from '../../core/models';
 import { sembrar } from '../../core/seed';
 import { SesionService } from '../../core/sesion';
+import { AuthApiDemo, rolDe } from '../../core/sesion.pruebas';
 import { CitasComponent } from './citas';
 
 /** Ayudas compartidas por las pruebas de la pantalla de citas (sin pruebas propias). */
@@ -24,6 +26,7 @@ export async function configurar(): Promise<void> {
     providers: [
       { provide: RELOJ, useValue: () => reloj },
       { provide: AgendaRepo, useClass: DemoAgendaRepo },
+      { provide: AuthApi, useClass: AuthApiDemo },
     ],
   }).compileComponents();
 }
@@ -43,7 +46,7 @@ export async function crear(permisos?: Permiso[], ahora?: Date) {
   const datos = sembrar(AHORA);
   const marta = datos.usuarios.find(u => u.usuario === 'marta')!;
   const roles = permisos ? [{ ...datos.roles[0], permisos }] : datos.roles;
-  TestBed.inject(SesionService).iniciar(marta, roles);
+  TestBed.inject(SesionService).iniciar(marta, rolDe(marta, roles));
   TestBed.inject(AgendaRepo); // siembra con el reloj de las 08:00
   if (ahora) reloj = ahora;
   const fixture = TestBed.createComponent(CitasComponent);

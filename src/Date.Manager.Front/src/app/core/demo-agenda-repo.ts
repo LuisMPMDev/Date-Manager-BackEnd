@@ -3,7 +3,7 @@ import { AgendaRepo, DatosCliente } from './agenda-repo';
 import { CambioNoPermitidoError, HorarioNoDisponibleError, RELOJ, RolEnUsoError } from './errores';
 import { aFechaISO } from './fechas';
 import { horariosLibres, sumarMinutos } from './horarios';
-import { Cita, Cliente, Datos, Rol, Servicio, Usuario } from './models';
+import { Cita, Cliente, Datos, Rol, Servicio, Usuario, UsuarioForm } from './models';
 import { conDependencias, puedeEliminarRol, validarCambioRol } from './permisos';
 import { sembrar } from './seed';
 
@@ -257,7 +257,7 @@ export class DemoAgendaRepo extends AgendaRepo {
     return copia(this.datos().usuarios);
   }
 
-  async guardarUsuario(u: Usuario): Promise<Usuario> {
+  async guardarUsuario(u: UsuarioForm): Promise<Usuario> {
     const guardado = copia(u);
     this.escribir(d => ({ ...d, usuarios: guardarPorId(d.usuarios, guardado) }));
     return copia(guardado);

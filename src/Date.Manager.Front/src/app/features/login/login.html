@@ -3,6 +3,10 @@
     <p class="marca">DateManager</p>
     <h1>Iniciar sesión</h1>
 
+    @if (sesion.aviso(); as aviso) {
+      <p class="aviso" role="status">{{ aviso }}</p>
+    }
+
     <form (submit)="enviar($event)" novalidate>
       <label for="usuario">Usuario</label>
       <input id="usuario" name="usuario" type="text" autocomplete="username"
@@ -18,17 +22,5 @@
 
       <button type="submit" class="btn primario" [disabled]="ocupado()">Iniciar sesión</button>
     </form>
-
-    <div class="ejemplo">
-      <h2>Cuentas de ejemplo</h2>
-      <p>Entra con un clic para probar cada rol.</p>
-      <div class="tarjetas">
-        @for (cuenta of cuentas; track cuenta.usuario) {
-          <button type="button" class="tarjeta" [disabled]="ocupado()" (click)="entrarCon(cuenta)">
-            {{ cuenta.etiqueta }}
-          </button>
-        }
-      </div>
-    </div>
   </section>
 </main>

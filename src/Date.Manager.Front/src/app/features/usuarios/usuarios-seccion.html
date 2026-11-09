@@ -33,7 +33,7 @@
         </div>
         <div class="campo">
           <label for="usuario-clave">Clave</label>
-          <input id="usuario-clave" name="clave" type="password" autocomplete="new-password" [value]="b.clave"
+          <input id="usuario-clave" name="clave" type="password" autocomplete="new-password" [value]="b.clave ?? ''"
                  [attr.aria-describedby]="esNuevo() ? null : 'usuario-clave-ayuda'" (input)="escribir('clave', $event)" />
           @if (!esNuevo()) {
             <p class="ayuda" id="usuario-clave-ayuda">Déjala vacía para conservar la clave actual.</p>

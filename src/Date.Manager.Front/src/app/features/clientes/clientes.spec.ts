@@ -1,11 +1,13 @@
 import { Injectable } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AgendaRepo } from '../../core/agenda-repo';
+import { AuthApi } from '../../core/auth-api';
 import { DemoAgendaRepo } from '../../core/demo-agenda-repo';
 import { RELOJ } from '../../core/errores';
 import { Cliente } from '../../core/models';
 import { sembrar } from '../../core/seed';
 import { SesionService } from '../../core/sesion';
+import { AuthApiDemo, rolDe } from '../../core/sesion.pruebas';
 import { ClientesComponent } from './clientes';
 
 const AHORA = new Date(2026, 10, 9, 8, 0);
@@ -26,6 +28,7 @@ async function configurar(repo: typeof DemoAgendaRepo = DemoAgendaRepo) {
     providers: [
       { provide: RELOJ, useValue: () => AHORA },
       { provide: AgendaRepo, useClass: repo },
+      { provide: AuthApi, useClass: AuthApiDemo },
     ],
   }).compileComponents();
 }
@@ -39,7 +42,7 @@ async function esperar(fixture: ComponentFixture<unknown>) {
 
 async function crear() {
   const datos = sembrar(AHORA);
-  TestBed.inject(SesionService).iniciar(datos.usuarios[0], datos.roles);
+  TestBed.inject(SesionService).iniciar(datos.usuarios[0], rolDe(datos.usuarios[0], datos.roles));
   const fixture = TestBed.createComponent(ClientesComponent);
   fixture.detectChanges();
   await esperar(fixture);

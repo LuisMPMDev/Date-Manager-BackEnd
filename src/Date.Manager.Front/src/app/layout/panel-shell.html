@@ -16,13 +16,6 @@
         </p>
       }
       <button type="button" class="accion" (click)="cerrarSesion()">Cerrar sesión</button>
-      @if (confirmandoReinicio()) {
-        <p class="pregunta" role="alert">¿Volver a los datos de ejemplo? Se pierden los cambios hechos.</p>
-        <button type="button" class="accion" (click)="reiniciarDemo()">Sí, reiniciar</button>
-        <button type="button" class="accion" data-volver (click)="cancelarReinicio()">No, volver</button>
-      } @else {
-        <button type="button" class="accion" data-reiniciar (click)="pedirReinicio()">Reiniciar demo</button>
-      }
     </div>
   </aside>
 

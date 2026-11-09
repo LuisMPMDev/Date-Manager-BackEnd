@@ -8,7 +8,7 @@ function rol(parcial: Partial<Rol> = {}): Rol {
 function usuario(parcial: Partial<Usuario> = {}): Usuario {
   return {
     id: 'u1', nombre: 'Ana', apellido: 'Pérez', correo: 'ana@x.com', telefono: '1',
-    usuario: 'ana', clave: '1234', rolId: 'r1', ...parcial,
+    usuario: 'ana', rolId: 'r1', ...parcial,
   };
 }
 

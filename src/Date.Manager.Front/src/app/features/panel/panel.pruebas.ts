@@ -2,10 +2,12 @@ import { Component, input, Type } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AgendaRepo } from '../../core/agenda-repo';
+import { AuthApi } from '../../core/auth-api';
 import { DemoAgendaRepo } from '../../core/demo-agenda-repo';
 import { RELOJ } from '../../core/errores';
 import { sembrar } from '../../core/seed';
 import { SesionService } from '../../core/sesion';
+import { AuthApiDemo, rolDe } from '../../core/sesion.pruebas';
 import { FABRICA_GRAFICA } from '../../shared/grafica';
 import { AgendaDiaComponent } from '../../shared/agenda-dia';
 import { PanelComponent } from './panel';
@@ -42,6 +44,7 @@ export async function configurar(opciones: { repo?: Type<AgendaRepo>; sinAgenda?
       provideRouter([]),
       { provide: RELOJ, useValue: () => reloj },
       { provide: AgendaRepo, useClass: opciones.repo ?? DemoAgendaRepo },
+      { provide: AuthApi, useClass: AuthApiDemo },
       { provide: FABRICA_GRAFICA, useValue: fabrica },
     ],
   });
@@ -63,7 +66,7 @@ export async function esperar(fixture: ComponentFixture<unknown>) {
 export async function crear(ahora?: Date) {
   const datos = sembrar(AHORA);
   const marta = datos.usuarios.find(u => u.usuario === 'marta')!;
-  TestBed.inject(SesionService).iniciar(marta, datos.roles);
+  TestBed.inject(SesionService).iniciar(marta, rolDe(marta, datos.roles));
   TestBed.inject(AgendaRepo); // siembra con el reloj de las 08:00
   if (ahora) reloj = ahora;
   const fixture = TestBed.createComponent(PanelComponent);

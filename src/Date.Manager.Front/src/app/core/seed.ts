@@ -1,5 +1,5 @@
 import { aMinutos, horariosLibres, sumarMinutos } from './horarios';
-import { Cita, Cliente, Datos, DiaSemana, EstadoCita, Rol, Servicio, Usuario, VentanaDisponibilidad } from './models';
+import { Cita, Cliente, Datos, DiaSemana, EstadoCita, Rol, Servicio, UsuarioForm, VentanaDisponibilidad } from './models';
 
 const HORA_MS = 60 * 60 * 1000;
 const DIA_MS = 24 * HORA_MS;
@@ -72,7 +72,7 @@ const ROLES: Rol[] = [
   },
 ];
 
-const USUARIOS: Usuario[] = [
+const USUARIOS: UsuarioForm[] = [
   {
     id: 'usr-marta', nombre: 'Marta', apellido: 'Rivas', correo: 'marta@datemanager.demo',
     telefono: '300 555 0201', usuario: 'marta', clave: 'demo123', rolId: 'rol-admin',

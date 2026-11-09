@@ -52,40 +52,10 @@ input {
   font-weight: 600;
 }
 
-.ejemplo {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1.5px solid var(--tinta);
-}
-
-.ejemplo h2 {
-  margin: 0 0 4px;
-  font-size: 14px;
-}
-
-.ejemplo p {
-  margin: 0 0 10px;
-  color: var(--apoyo);
-  font-size: 13px;
-}
-
-.tarjetas {
-  display: grid;
-  gap: 8px;
-}
-
-.tarjeta {
-  text-align: left;
-  padding: 10px 12px;
-  border: 1.5px solid var(--tinta);
+.aviso {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-left: 4px solid var(--cobalto);
   background: var(--fondo);
-  color: var(--tinta);
-  font: inherit;
   font-weight: 600;
-  cursor: pointer;
-}
-
-.tarjeta:hover:not(:disabled) {
-  background: var(--tinta);
-  color: var(--blanco);
 }

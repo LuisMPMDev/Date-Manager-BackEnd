@@ -1,99 +1,60 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { AgendaRepo } from '../core/agenda-repo';
-import { DemoAgendaRepo } from '../core/demo-agenda-repo';
-import { RELOJ } from '../core/errores';
-import { sembrar } from '../core/seed';
+import { Rol, Usuario } from '../core/models';
+import { ANDRES, MARTA, ROL_ADMIN, ROL_RECEPCION } from '../core/sesion.pruebas';
 import { SesionService } from '../core/sesion';
 import { PanelShell } from './panel-shell';
 
-const AHORA = new Date(2026, 10, 9, 8, 0);
-
 describe('PanelShell', () => {
-  const datos = sembrar(AHORA);
-
-  let fixture: ComponentFixture<PanelShell>;
-
-  function crear(usuario: string) {
+  function crear(usuario: Usuario, rol: Rol) {
     sessionStorage.clear();
-    localStorage.clear();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       imports: [PanelShell],
-      providers: [
-        provideRouter([]),
-        { provide: RELOJ, useValue: () => AHORA },
-        { provide: AgendaRepo, useClass: DemoAgendaRepo },
-      ],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
     });
-    TestBed.inject(SesionService).iniciar(datos.usuarios.find(u => u.usuario === usuario)!, datos.roles);
-    fixture = TestBed.createComponent(PanelShell);
+    TestBed.inject(SesionService).iniciar(usuario, rol);
+    const fixture = TestBed.createComponent(PanelShell);
     fixture.detectChanges();
-    return fixture.nativeElement as HTMLElement;
+    return { fixture, el: fixture.nativeElement as HTMLElement };
   }
 
   const enlaces = (el: HTMLElement) => Array.from(el.querySelectorAll('nav a')).map(a => a.textContent?.trim());
+  const botones = (el: HTMLElement) => Array.from(el.querySelectorAll('button')).map(b => b.textContent?.trim());
 
-  it('el administrador ve todo el menú', () => {
-    expect(enlaces(crear('marta'))).toEqual(['Panel', 'Agenda', 'Citas', 'Servicios', 'Clientes', 'Usuarios y roles']);
-  });
-
-  describe('«Reiniciar demo»', () => {
-    const boton = (el: HTMLElement, texto: string) =>
-      Array.from(el.querySelectorAll<HTMLButtonElement>('button')).find(b => b.textContent?.trim() === texto);
-    const esperar = async () => {
-      await new Promise(r => setTimeout(r));
-      fixture.detectChanges();
-    };
-    const valorConsulta = async () =>
-      (await TestBed.inject(AgendaRepo).servicios()).find(s => s.id === 'srv-consulta')!.valor;
-
-    async function conCambios() {
-      const el = crear('marta');
-      const repo = TestBed.inject(AgendaRepo);
-      const consulta = (await repo.servicios()).find(s => s.id === 'srv-consulta')!;
-      await repo.guardarServicio({ ...consulta, valor: 1 });
-      vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
-      return el;
-    }
-
-    it('pide confirmación antes de borrar y no toca los datos', async () => {
-      const el = await conCambios();
-      boton(el, 'Reiniciar demo')!.click();
-      await esperar();
-      expect(el.textContent).toContain('¿Volver a los datos de ejemplo?');
-      expect(boton(el, 'Reiniciar demo')).toBeUndefined();
-      expect(await valorConsulta()).toBe(1);
-    });
-
-    it('«No, volver» cancela y deja los cambios', async () => {
-      const el = await conCambios();
-      boton(el, 'Reiniciar demo')!.click();
-      await esperar();
-      boton(el, 'No, volver')!.click();
-      await esperar();
-      expect(el.textContent).not.toContain('¿Volver a los datos de ejemplo?');
-      expect(boton(el, 'Reiniciar demo')).toBeDefined();
-      expect(await valorConsulta()).toBe(1);
-    });
-
-    it('«Sí, reiniciar» restaura los datos de ejemplo y conserva la sesión', async () => {
-      const el = await conCambios();
-      boton(el, 'Reiniciar demo')!.click();
-      await esperar();
-      boton(el, 'Sí, reiniciar')!.click();
-      await esperar();
-      await esperar();
-      expect(await valorConsulta()).toBe(40000);
-      expect(TestBed.inject(SesionService).usuario()?.usuario).toBe('marta');
-      expect(el.textContent).not.toContain('¿Volver a los datos de ejemplo?');
-      expect(boton(el, 'Reiniciar demo')).toBeDefined();
-    });
+  it('el administrador ve todo el menú, con Enlaces', () => {
+    const { el } = crear(MARTA, ROL_ADMIN);
+    expect(enlaces(el)).toEqual(['Panel', 'Agenda', 'Citas', 'Servicios', 'Clientes', 'Usuarios y roles', 'Enlaces']);
   });
 
   it('recepción solo ve lo que su rol permite', () => {
-    const el = crear('andres');
+    const { el } = crear(ANDRES, ROL_RECEPCION);
     expect(enlaces(el)).toEqual(['Agenda', 'Citas', 'Clientes']);
     expect(el.textContent).toContain('Recepción');
+  });
+
+  it('un rol sin gestionar_enlaces no ve Enlaces', () => {
+    const { el } = crear(MARTA, { ...ROL_ADMIN, permisos: ROL_ADMIN.permisos.filter(p => p !== 'gestionar_enlaces') });
+    expect(enlaces(el)).not.toContain('Enlaces');
+  });
+
+  it('ya no existe «Reiniciar demo» ni su confirmación: solo queda «Cerrar sesión»', () => {
+    const { el } = crear(MARTA, ROL_ADMIN);
+    expect(botones(el)).toEqual(['Cerrar sesión']);
+    expect(el.textContent).not.toMatch(/reiniciar|datos de ejemplo/i);
+  });
+
+  it('«Cerrar sesión» limpia la sesión, borra el token y va a /login', async () => {
+    const { fixture, el } = crear(MARTA, ROL_ADMIN);
+    sessionStorage.setItem('datemanager.sesion.v2', JSON.stringify({ token: 'jwt-1' }));
+    const navegar = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    el.querySelector<HTMLButtonElement>('button.accion')!.click();
+    await fixture.whenStable();
+
+    expect(TestBed.inject(SesionService).usuario()).toBeNull();
+    expect(sessionStorage.getItem('datemanager.sesion.v2')).toBeNull();
+    expect(navegar).toHaveBeenCalledWith('/login');
   });
 });

@@ -1,4 +1,4 @@
-import { Rol, Usuario } from '../../core/models';
+import { Rol, Usuario, UsuarioForm } from '../../core/models';
 import {
   alternarPermiso, motivoNoCambiarRol, motivoNoEliminarUsuario, verCitasObligatorio, validarRolEditado, validarUsuario,
 } from './usuarios-logica';
@@ -10,7 +10,7 @@ const ADMIN: Rol = {
 const RECEPCION: Rol = { id: 'rol-recepcion', nombre: 'Recepción', descripcion: '', permisos: ['ver_citas'] };
 const ROLES = [ADMIN, RECEPCION];
 
-const marta: Usuario = {
+const marta: UsuarioForm = {
   id: 'usr-marta', nombre: 'Marta', apellido: 'Rivas', correo: 'marta@datemanager.demo',
   telefono: '300 555 0201', usuario: 'marta', clave: 'demo123', rolId: 'rol-admin',
 };
