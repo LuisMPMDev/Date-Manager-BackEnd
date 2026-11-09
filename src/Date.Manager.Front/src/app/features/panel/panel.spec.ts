@@ -1,22 +1,16 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { Servicio } from '../../core/models';
-import { alertas, citasPorDia } from '../../core/metricas';
-import { sembrar } from '../../testing/seed';
+import { Inicio } from '../../core/inicio';
 import { SesionService } from '../../core/sesion';
 import { rolDe } from '../../core/sesion.pruebas';
-import { aFechaISO, sumarDias } from '../../shared/formato';
+import { moneda } from '../../shared/formato';
+import { sembrar } from '../../testing/seed';
 import {
-  AHORA, botonesAlerta, celdas, configurar, crear, DIA_MS, esperar, filasProximas, fijarReloj, GraficaDoble, kpi, repo,
-  textosAlerta,
+  AHORA, api, botonesAlerta, celdas, configurar, crear, esperar, filasProximas, GraficaDoble, INICIO, INICIO_VACIO, kpi,
+  repo, textosAlerta,
 } from './panel.pruebas';
-import { proximasCitas } from './panel-kpis';
 
 const SIN_ALERTAS = 'Todo en orden: no hay alertas.';
-
-const sinHorario = (n: number): Servicio => ({
-  id: `extra-${n}`, nombre: `Extra ${n}`, duracionMin: 30, activo: true, valor: 1000, ventanas: [],
-});
 
 describe('PanelComponent', () => {
   let graficas: GraficaDoble[];
@@ -29,6 +23,11 @@ describe('PanelComponent', () => {
     expect(el.querySelector('h2')!.textContent?.trim()).toBe('Hola, Marta. Así va el día');
   });
 
+  it('pide el tablero sin fecha: el servidor decide cuál es hoy', async () => {
+    await crear();
+    expect(api().llamadas).toEqual([undefined]);
+  });
+
   it('muestra seis indicadores con sus etiquetas', async () => {
     const { el } = await crear();
     const etiquetas = Array.from(el.querySelectorAll('.kpi .kpi-etiqueta')).map(e => e.textContent?.trim());
@@ -37,133 +36,148 @@ describe('PanelComponent', () => {
     ]);
   });
 
-  it('los indicadores salen de los datos de ejemplo', async () => {
-    const { el } = await crear();
-    const citas = await repo().citas();
-    const hoy = citas.filter(c => c.fecha === '2026-11-09' && c.estado !== 'Cancelada');
-    expect(kpi(el, 'Citas hoy')).toEqual({ valor: String(hoy.length), detalle: '0 ya atendidas' });
+  describe('indicadores', () => {
+    it('citas de hoy y cuántas ya se atendieron', async () => {
+      const { el } = await crear();
+      expect(kpi(el, 'Citas hoy')).toEqual({ valor: '4', detalle: '1 ya atendida' });
+    });
 
-    const proxima = proximasCitas(citas, AHORA, 1)[0];
-    expect(kpi(el, 'Próxima cita').valor).toBe(proxima.inicio);
-    expect(kpi(el, 'Ocupación de hoy').valor).toMatch(/^\d+%$/);
-    expect(kpi(el, 'Ingresos estimados').valor).toMatch(/\d/);
+    it('próxima cita: hora, minutos que faltan y servicio', async () => {
+      const { el } = await crear();
+      expect(kpi(el, 'Próxima cita')).toEqual({ valor: '09:30', detalle: 'en 90 min · Corte de cabello' });
+    });
+
+    it('próxima cita de otro día: muestra la fecha en lugar de los minutos', async () => {
+      const proxima = INICIO.proximas[1];
+      const { el } = await crear({ ...INICIO, proxima });
+      expect(kpi(el, 'Próxima cita')).toEqual({ valor: '11:00', detalle: 'Martes 10 de noviembre · Barba' });
+    });
+
+    it('ocupación en porcentaje y su variación contra el mismo día de la semana pasada', async () => {
+      const { el } = await crear();
+      expect(kpi(el, 'Ocupación de hoy')).toEqual({ valor: '62%', detalle: '▲ 24% vs. lunes pasado' });
+    });
+
+    it('citas nuevas y canceladas con su variación contra los 30 días anteriores', async () => {
+      const { el } = await crear();
+      expect(kpi(el, 'Citas nuevas (30 días)')).toEqual({ valor: '12', detalle: '▼ 25% vs. 30 días antes' });
+      expect(kpi(el, 'Canceladas (30 días)')).toEqual({ valor: '3', detalle: '▼ 40% vs. 30 días antes' });
+    });
+
+    it('ingresos con formato de moneda y su variación', async () => {
+      const { el } = await crear();
+      expect(kpi(el, 'Ingresos estimados')).toEqual({ valor: moneda(1250000), detalle: '▲ 25% vs. 30 días antes' });
+      expect(kpi(el, 'Ingresos estimados').valor).toMatch(/1\.250\.000/);
+    });
+
+    it('el tono depende de si subir es bueno: menos canceladas es bueno, menos citas nuevas es malo', async () => {
+      const { el } = await crear();
+      const detalle = (etiqueta: string) =>
+        Array.from(el.querySelectorAll('.kpi')).find(k => k.querySelector('.kpi-etiqueta')?.textContent?.trim() === etiqueta)!
+          .querySelector('.kpi-detalle')!;
+      expect(detalle('Ocupación de hoy').classList.contains('ok')).toBe(true);
+      expect(detalle('Citas nuevas (30 días)').classList.contains('mal')).toBe(true);
+      expect(detalle('Canceladas (30 días)').classList.contains('ok')).toBe(true);
+      expect(detalle('Citas hoy').classList.contains('ok') || detalle('Citas hoy').classList.contains('mal')).toBe(false);
+    });
+
+    it('una variación ausente se muestra como «—» y no rompe', async () => {
+      const sinVariacion: Inicio = {
+        ...INICIO,
+        ocupacionHoy: { actual: 0.62, anterior: 0 },
+        citasNuevas: { actual: 12, anterior: 0 },
+        citasCanceladas: { actual: 3, anterior: 0 },
+        ingresos: { actual: 1250000, anterior: 0 },
+      };
+      const { el } = await crear(sinVariacion);
+      expect(kpi(el, 'Ocupación de hoy')).toEqual({ valor: '62%', detalle: '—' });
+      expect(kpi(el, 'Citas nuevas (30 días)')).toEqual({ valor: '12', detalle: '—' });
+      expect(kpi(el, 'Canceladas (30 días)')).toEqual({ valor: '3', detalle: '—' });
+      expect(kpi(el, 'Ingresos estimados').detalle).toBe('—');
+      expect(el.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it('una variación de 0 % dice «Sin cambios»', async () => {
+      const { el } = await crear({ ...INICIO, citasNuevas: { actual: 12, anterior: 12, variacion: 0 } });
+      expect(kpi(el, 'Citas nuevas (30 días)')).toEqual({ valor: '12', detalle: 'Sin cambios vs. 30 días antes' });
+    });
+  });
+
+  describe('día sin citas', () => {
+    it('renderiza todo en cero y con las listas vacías, sin error', async () => {
+      const { el } = await crear(INICIO_VACIO);
+      expect(el.querySelector('[role="alert"]')).toBeNull();
+      expect(kpi(el, 'Citas hoy')).toEqual({ valor: '0', detalle: '0 ya atendidas' });
+      expect(kpi(el, 'Próxima cita')).toEqual({ valor: '—', detalle: 'Sin citas próximas' });
+      expect(kpi(el, 'Ocupación de hoy')).toEqual({ valor: '0%', detalle: '—' });
+      expect(kpi(el, 'Ingresos estimados').valor).toBe(moneda(0));
+      expect(el.querySelector('.alertas')!.textContent).toContain(SIN_ALERTAS);
+      expect(filasProximas(el)).toHaveLength(0);
+      expect(el.querySelector('.proximas')!.textContent).toContain('No hay citas próximas.');
+      expect(el.textContent).toContain('Citas por día, últimos 30 días: sin citas.');
+      expect(el.textContent).toContain('no hay servicios activos');
+    });
   });
 
   describe('alertas', () => {
     it('lista las alertas con su título y detalle', async () => {
       const { el } = await crear();
-      const esperadas = alertas(await repo().servicios(), await repo().citas(), AHORA);
-      expect(esperadas.length).toBeGreaterThan(0);
-      expect(botonesAlerta(el)).toHaveLength(esperadas.length);
+      expect(botonesAlerta(el)).toHaveLength(3);
       const textos = textosAlerta(el);
-      esperadas.forEach((a, i) => {
+      INICIO.alertas.forEach((a, i) => {
         expect(textos[i]).toContain(a.titulo);
         expect(textos[i]).toContain(a.detalle);
       });
       expect(el.textContent).not.toContain(SIN_ALERTAS);
     });
 
-    it('la alerta «servicio sin horario» aparece al quitar todas las ventanas de un servicio activo y desaparece al restituirlas', async () => {
-      const { fixture, el } = await crear();
-      const servicio = (await repo().servicios())[0];
-      expect(textosAlerta(el).some(t => t.includes('Servicio sin horario'))).toBe(false);
+    it('avisa de cuántas más hay cuando la API dejó alertas fuera', async () => {
+      const { el } = await crear();
+      expect(el.querySelector('.alertas .mas')!.textContent?.trim()).toBe('y 2 más.');
+    });
 
-      await repo().guardarServicio({ ...servicio, ventanas: [] });
-      await esperar(fixture);
-      const alerta = textosAlerta(el).find(t => t.includes('Servicio sin horario'));
-      expect(alerta).toContain(servicio.nombre);
-
-      await repo().guardarServicio(servicio);
-      await esperar(fixture);
-      expect(textosAlerta(el).some(t => t.includes('Servicio sin horario'))).toBe(false);
+    it('sin alertas extra no muestra el aviso de «más»', async () => {
+      const { el } = await crear({ ...INICIO, alertasExtra: 0 });
+      expect(el.querySelector('.alertas .mas')).toBeNull();
     });
 
     it('cuando no hay alertas muestra «Todo en orden: no hay alertas.»', async () => {
-      const { el } = await crear(new Date(AHORA.getTime() + 5 * DIA_MS)); // ya pasó el día de las citas nuevas y canceladas
+      const { el } = await crear({ ...INICIO, alertas: [], alertasExtra: 0 });
       expect(botonesAlerta(el)).toHaveLength(0);
       expect(el.querySelector('.alertas')!.textContent).toContain(SIN_ALERTAS);
     });
 
-    it('muestra a lo sumo 6 y avisa de cuántas más hay', async () => {
-      const { fixture, el } = await crear();
-      const base = alertas(await repo().servicios(), await repo().citas(), AHORA).length;
-      for (let i = 1; i <= 7; i++) await repo().guardarServicio(sinHorario(i));
-      await esperar(fixture);
-      expect(botonesAlerta(el)).toHaveLength(6);
-      expect(el.querySelector('.alertas .mas')!.textContent?.trim()).toBe(`y ${base + 7 - 6} más.`);
-    });
-
-    it('al hacer clic, las de citas llevan a Citas y las de servicios a Servicios', async () => {
+    it('al hacer clic, las de citas llevan a Citas y la de servicio a Servicios', async () => {
       const { el } = await crear();
       const navegar = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
       botonesAlerta(el).find(b => b.textContent!.includes('Cita nueva'))!.click();
       expect(navegar).toHaveBeenLastCalledWith('/citas');
       botonesAlerta(el).find(b => b.textContent!.includes('Cita cancelada'))!.click();
       expect(navegar).toHaveBeenLastCalledWith('/citas');
-    });
-
-    it('la de servicio sin horario lleva a Servicios', async () => {
-      const { fixture, el } = await crear();
-      const navegar = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
-      await repo().guardarServicio(sinHorario(1));
-      await esperar(fixture);
       botonesAlerta(el).find(b => b.textContent!.includes('Servicio sin horario'))!.click();
       expect(navegar).toHaveBeenLastCalledWith('/servicios');
     });
   });
 
   describe('próximas citas', () => {
-    it('lista las próximas 5 confirmadas con hora, cliente, servicio, teléfono y estado', async () => {
+    it('lista las citas con hora, cliente, servicio y teléfono, sin columna de estado', async () => {
       const { el } = await crear();
       const encabezados = Array.from(el.querySelectorAll('.proximas thead th')).map(t => t.textContent?.trim());
-      expect(encabezados).toEqual(['Hora', 'Cliente', 'Servicio', 'Teléfono', 'Estado', 'Acciones']);
+      expect(encabezados).toEqual(['Hora', 'Cliente', 'Servicio', 'Teléfono', 'Acciones']);
+      expect(filasProximas(el).map(f => f.dataset['cita'])).toEqual(['c-1', 'c-3']);
 
-      const citas = await repo().citas();
-      const esperadas = proximasCitas(citas, AHORA, 5);
-      expect(esperadas).toHaveLength(5);
-      expect(filasProximas(el).map(f => f.dataset['cita'])).toEqual(esperadas.map(c => c.id));
-
-      const primera = esperadas[0];
-      const cliente = (await repo().clientes()).find(c => c.id === primera.clienteId)!;
-      const servicio = (await repo().servicios()).find(s => s.id === primera.servicioId)!;
-      const [hora, nombre, nombreServicio, telefono, estado] = celdas(filasProximas(el)[0]);
-      expect(hora).toContain(primera.inicio);
-      expect(nombre).toBe(`${cliente.nombre} ${cliente.apellido}`);
-      expect(nombreServicio).toBe(servicio.nombre);
-      expect(telefono).toBe(cliente.telefono);
-      expect(estado).toBe('Confirmada');
-    });
-
-    it('se actualiza con el paso del tiempo sin recargar', async () => {
-      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
-      try {
-        const { fixture, el } = await crear();
-        const citas = await repo().citas();
-        const antes = proximasCitas(citas, AHORA, 5).map(c => c.id);
-        expect(filasProximas(el).map(f => f.dataset['cita'])).toEqual(antes);
-
-        const tarde = new Date(2026, 10, 9, 23, 0); // ya pasaron las citas de hoy
-        fijarReloj(tarde);
-        const despues = proximasCitas(citas, tarde, 5).map(c => c.id);
-        expect(despues).not.toEqual(antes);
-
-        vi.advanceTimersByTime(60_000);
-        await esperar(fixture);
-        expect(filasProximas(el).map(f => f.dataset['cita'])).toEqual(despues);
-      } finally {
-        vi.useRealTimers();
-      }
+      const [hora, cliente, servicio, telefono] = celdas(filasProximas(el)[0]);
+      expect(hora).toBe('09:30');
+      expect(cliente).toBe('Laura Gómez');
+      expect(servicio).toBe('Corte de cabello');
+      expect(telefono).toBe('300 111 2233');
+      expect(el.querySelector('.proximas .chip')).toBeNull();
     });
 
     it('muestra la fecha junto a la hora cuando la cita no es de hoy', async () => {
       const { el } = await crear();
-      const citas = await repo().citas();
-      const esperadas = proximasCitas(citas, AHORA, 5);
-      const otroDia = esperadas.findIndex(c => c.fecha !== '2026-11-09');
-      expect(otroDia).toBeGreaterThanOrEqual(0);
-      expect(celdas(filasProximas(el)[otroDia])[0]).toMatch(/(Lunes|Martes|Miércoles|Jueves|Viernes|Sábado|Domingo) \d{1,2} de [a-zé]+/);
-      const hoy = esperadas.findIndex(c => c.fecha === '2026-11-09');
-      if (hoy >= 0) expect(celdas(filasProximas(el)[hoy])[0]).not.toMatch(/ de /);
+      expect(celdas(filasProximas(el)[1])[0]).toBe('11:00Martes 10 de noviembre') // la fecha es un bloque aparte debajo de la hora;
+      expect(celdas(filasProximas(el)[0])[0]).not.toMatch(/ de /);
     });
 
     it('«Abrir» lleva a Citas', async () => {
@@ -171,6 +185,7 @@ describe('PanelComponent', () => {
       const navegar = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
       const abrir = filasProximas(el)[0].querySelector<HTMLButtonElement>('button')!;
       expect(abrir.textContent?.trim()).toBe('Abrir');
+      expect(abrir.getAttribute('aria-label')).toBe('Abrir cita de Laura Gómez, Lunes 9 de noviembre 09:30');
       abrir.click();
       expect(navegar).toHaveBeenCalledWith('/citas');
     });
@@ -184,12 +199,12 @@ describe('PanelComponent', () => {
       TestBed.inject(SesionService).iniciar(marta, { ...rolDe(marta, datos.roles), permisos: ['ver_panel'] });
       await esperar(fixture);
 
-      expect(filasProximas(el).length).toBeGreaterThan(0);
+      expect(filasProximas(el)).toHaveLength(2);
       expect(el.querySelectorAll('.proximas button')).toHaveLength(0);
     });
 
-    it('sin citas por delante dice «No hay citas próximas.» y «Sin citas próximas»', async () => {
-      const { el } = await crear(new Date(AHORA.getTime() + 40 * DIA_MS));
+    it('sin citas por delante dice «No hay citas próximas.»', async () => {
+      const { el } = await crear({ ...INICIO, proxima: undefined, proximas: [] });
       expect(filasProximas(el)).toHaveLength(0);
       expect(el.querySelector('.proximas')!.textContent).toContain('No hay citas próximas.');
       expect(kpi(el, 'Próxima cita')).toEqual({ valor: '—', detalle: 'Sin citas próximas' });
@@ -197,7 +212,7 @@ describe('PanelComponent', () => {
   });
 
   describe('agenda y gráficas', () => {
-    it('muestra la agenda de hoy', async () => {
+    it('muestra la agenda del día que respondió la API', async () => {
       const { fixture, el } = await crear();
       const agenda = fixture.debugElement.query(x => x.name === 'app-agenda-dia');
       expect(agenda).not.toBeNull();
@@ -210,37 +225,44 @@ describe('PanelComponent', () => {
       expect(graficas.map(g => g.config.options.indexAxis)).toEqual(['x', 'y']);
 
       const [dias, semana] = graficas;
-      const serie = citasPorDia(await repo().citas(), sumarDias('2026-11-09', -29), '2026-11-09');
       expect(dias.config.data.labels).toHaveLength(30);
-      expect(dias.config.data.datasets[0].data).toEqual(serie.map(d => d.total));
+      expect(dias.config.data.labels[29]).toBe('9 nov');
+      expect(dias.config.data.datasets[0].data).toEqual(INICIO.citasPorDia.map(d => d.total));
 
-      const activos = (await repo().servicios()).filter(s => s.activo);
-      expect(semana.config.data.labels).toEqual(activos.map(s => s.nombre));
-      expect(semana.config.data.datasets[0].data.every((v: number) => v >= 0 && v <= 100)).toBe(true);
+      expect(semana.config.data.labels).toEqual(['Corte de cabello', 'Barba']);
+      expect(semana.config.data.datasets[0].data).toEqual([50, 26]);
       expect(el.querySelectorAll('app-grafica')).toHaveLength(2);
       expect(el.textContent).toContain('Citas por día, últimos 30 días');
-      expect(el.textContent).toContain('Ocupación por servicio esta semana');
+      expect(el.textContent).toContain('Ocupación por servicio esta semana: Corte de cabello 50%, Barba 26%.');
     });
   });
 
-  it('se recalcula cuando cambian los datos', async () => {
-    const { fixture, el } = await crear();
-    const antes = Number(kpi(el, 'Citas hoy').valor);
-    const hoy = (await repo().citas()).find(c => c.fecha === '2026-11-09' && c.estado === 'Confirmada')!;
-    await repo().cancelarCita(hoy.id);
-    await esperar(fixture);
-    expect(kpi(el, 'Citas hoy').valor).toBe(String(antes - 1));
-    expect(Number(kpi(el, 'Canceladas (30 días)').valor)).toBeGreaterThan(0);
-  });
+  describe('recarga', () => {
+    it('vuelve a pedir el tablero cuando cambian los datos del negocio', async () => {
+      const { fixture, el } = await crear();
+      expect(kpi(el, 'Citas hoy').valor).toBe('4');
+      api().respuesta = () => Promise.resolve({ ...INICIO, citasHoy: { total: 3, atendidas: 1 } });
+      await repo().guardarServicio((await repo().servicios())[0]);
+      await esperar(fixture);
+      expect(api().llamadas).toHaveLength(2);
+      expect(kpi(el, 'Citas hoy').valor).toBe('3');
+    });
 
-  it('usa el día de hoy del reloj en cada carga', async () => {
-    const { fixture, el } = await crear();
-    const manana = new Date(AHORA.getTime() + DIA_MS);
-    expect(aFechaISO(manana)).toBe('2026-11-10');
-    fijarReloj(manana);
-    await repo().guardarServicio((await repo().servicios())[0]);
-    await esperar(fixture);
-    expect(fixture.debugElement.query(x => x.name === 'app-agenda-dia').componentInstance.fecha()).toBe('2026-11-10');
-    expect(el.querySelector('h2')).not.toBeNull();
+    it('se refresca con el paso del tiempo, para que «en N min» no se quede viejo', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      try {
+        const { fixture, el } = await crear();
+        expect(kpi(el, 'Próxima cita').detalle).toBe('en 90 min · Corte de cabello');
+        api().respuesta = () => Promise.resolve({
+          ...INICIO, proxima: { ...INICIO.proximas[0], minutosHasta: 89 },
+        });
+        vi.advanceTimersByTime(60_000);
+        await esperar(fixture);
+        expect(api().llamadas).toHaveLength(2);
+        expect(kpi(el, 'Próxima cita').detalle).toBe('en 89 min · Corte de cabello');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

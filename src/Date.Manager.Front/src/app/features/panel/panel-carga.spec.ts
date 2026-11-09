@@ -1,73 +1,60 @@
-import { Injectable } from '@angular/core';
-import { Cita } from '../../core/models';
-import { DemoAgendaRepo } from '../../testing/demo-agenda-repo';
-import { configurar, crear, esperar, kpi, repo } from './panel.pruebas';
+import { ApiError } from '../../core/api-error';
+import { Inicio } from '../../core/inicio';
+import { api, configurar, crear, esperar, INICIO, kpi, repo } from './panel.pruebas';
 
-@Injectable()
-class RepoLento extends DemoAgendaRepo {
-  lento = false;
-  readonly retenidas: (() => void)[] = [];
-
-  /** Con `lento`, la respuesta (tomada en el momento de la llamada) se entrega cuando la prueba lo decida. */
-  override async citas(): Promise<Cita[]> {
-    const instantanea = await super.citas();
-    if (!this.lento) return instantanea;
-    return new Promise<Cita[]>(resolver => this.retenidas.push(() => resolver(instantanea)));
-  }
-}
-
-@Injectable()
-class RepoQueFalla extends DemoAgendaRepo {
-  fallar = true;
-
-  override async citas(): Promise<Cita[]> {
-    if (this.fallar) throw new Error('sin conexión');
-    return super.citas();
-  }
-}
+const AVISO_403 = 'No tienes permiso para ver esta información.';
 
 describe('PanelComponent: cargas', () => {
+  beforeEach(async () => {
+    await configurar({ sinAgenda: true });
+  });
+
   it('descarta una respuesta que llega tarde y deja la más reciente', async () => {
-    await configurar({ repo: RepoLento, sinAgenda: true });
     const { fixture, el } = await crear();
-    const lento = repo() as RepoLento;
-    const [a, b] = (await lento.citas()).filter(c => c.fecha === '2026-11-09' && c.estado === 'Confirmada');
-    expect(kpi(el, 'Citas hoy').valor).toBe('2');
+    expect(kpi(el, 'Citas hoy').valor).toBe('4');
 
-    lento.lento = true;
-    await lento.cancelarCita(a.id); // carga A: ve 1 cita hoy
+    const retenidas: ((i: Inicio) => void)[] = [];
+    api().respuesta = () => new Promise<Inicio>(resolver => retenidas.push(resolver));
+    const servicio = (await repo().servicios())[0];
+    await repo().guardarServicio(servicio); // carga A
     fixture.detectChanges();
-    await lento.cancelarCita(b.id); // carga B: ve 0 citas hoy
+    await repo().guardarServicio(servicio); // carga B
     fixture.detectChanges();
     await esperar(fixture);
-    expect(lento.retenidas.length).toBeGreaterThanOrEqual(2);
-    const [cargaA, cargaB] = lento.retenidas.slice(-2);
+    expect(retenidas).toHaveLength(2);
+    const [cargaA, cargaB] = retenidas;
 
-    cargaB();
+    cargaB({ ...INICIO, citasHoy: { total: 7, atendidas: 0 } });
     await esperar(fixture);
-    expect(kpi(el, 'Citas hoy').valor).toBe('0');
+    expect(kpi(el, 'Citas hoy').valor).toBe('7');
 
-    cargaA(); // la respuesta vieja llega después
+    cargaA({ ...INICIO, citasHoy: { total: 1, atendidas: 0 } }); // la respuesta vieja llega después
     await esperar(fixture);
-    expect(kpi(el, 'Citas hoy').valor).toBe('0');
+    expect(kpi(el, 'Citas hoy').valor).toBe('7');
   });
 
   it('si falla la carga muestra «No se pudo cargar el panel.»', async () => {
-    await configurar({ repo: RepoQueFalla, sinAgenda: true });
-    const { el } = await crear();
-    const alerta = el.querySelector('[role="alert"]');
-    expect(alerta?.textContent?.trim()).toBe('No se pudo cargar el panel.');
+    const { el } = await crear(() => Promise.reject(new ApiError(0, 'ERROR_RED', 'sin conexión')));
+    expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe('No se pudo cargar el panel.');
     expect(el.querySelectorAll('.kpi')).toHaveLength(0);
   });
 
   it('se recupera cuando una carga posterior sale bien', async () => {
-    await configurar({ repo: RepoQueFalla, sinAgenda: true });
-    const { fixture, el } = await crear();
+    const { fixture, el } = await crear(() => Promise.reject(new ApiError(500, 'ERROR_INTERNO', 'falló')));
     expect(el.querySelector('[role="alert"]')).not.toBeNull();
-    (repo() as RepoQueFalla).fallar = false;
+    api().respuesta = () => Promise.resolve(INICIO);
     await repo().guardarServicio((await repo().servicios())[0]);
     await esperar(fixture);
     expect(el.querySelector('[role="alert"]')).toBeNull();
     expect(el.querySelectorAll('.kpi')).toHaveLength(6);
+  });
+
+  it('un 403 muestra el aviso de «sin permiso» dentro del tablero y no rompe', async () => {
+    const { el } = await crear(() => Promise.reject(new ApiError(403, 'SIN_PERMISO', 'No tienes permiso para esta acción.')));
+    const aviso = el.querySelector('[role="alert"]');
+    expect(aviso?.textContent?.trim()).toBe(AVISO_403);
+    expect(el.textContent).not.toContain('No se pudo cargar el panel.');
+    expect(el.querySelector('h2')).not.toBeNull();
+    expect(el.querySelectorAll('.kpi')).toHaveLength(0);
   });
 });

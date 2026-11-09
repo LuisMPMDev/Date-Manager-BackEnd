@@ -177,14 +177,6 @@ tr.vacio td {
   color: var(--apoyo);
 }
 
-.chip {
-  display: inline-block;
-  padding: 0 6px;
-  border: var(--borde);
-  font-size: 12px;
-  font-weight: 600;
-}
-
 td .btn {
   padding: 2px 10px;
   font-size: 12px;

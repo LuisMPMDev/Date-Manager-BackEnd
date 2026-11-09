@@ -19,7 +19,7 @@
     <section class="bloque agenda" aria-labelledby="t-agenda">
       <h3 id="t-agenda">Agenda de hoy: una columna por servicio</h3>
       <div class="agenda-caja">
-        <app-agenda-dia [fecha]="hoy()" />
+        <app-agenda-dia [fecha]="v.fecha" />
       </div>
     </section>
 
@@ -67,7 +67,6 @@
               <th>Cliente</th>
               <th>Servicio</th>
               <th>Teléfono</th>
-              <th>Estado</th>
               <th><span class="sr-only">Acciones</span></th>
             </tr>
           </thead>
@@ -76,24 +75,23 @@
               <tr [attr.data-cita]="f.cita.id">
                 <td class="nowrap">
                   <strong>{{ f.cita.inicio }}</strong>
-                  @if (!f.hoy) {
+                  @if (!f.cita.esHoy) {
                     <small class="fecha">{{ fechaLarga(f.cita.fecha) }}</small>
                   }
                 </td>
-                <td>{{ nombreCompleto(f.cliente) }}</td>
-                <td>{{ f.servicio?.nombre }}</td>
-                <td class="nowrap">{{ f.cliente?.telefono }}</td>
-                <td><span class="chip">{{ f.cita.estado }}</span></td>
+                <td>{{ f.cliente }}</td>
+                <td>{{ f.cita.servicioNombre }}</td>
+                <td class="nowrap">{{ f.cita.clienteTelefono }}</td>
                 <td class="nowrap">
                   @if (puedeVerCitas()) {
                     <button type="button" class="btn" (click)="abrirCitas()"
-                            [attr.aria-label]="'Abrir cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Abrir</button>
+                            [attr.aria-label]="'Abrir cita de ' + f.cliente + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Abrir</button>
                   }
                 </td>
               </tr>
             } @empty {
               <tr class="vacio">
-                <td colspan="6">No hay citas próximas.</td>
+                <td colspan="5">No hay citas próximas.</td>
               </tr>
             }
           </tbody>

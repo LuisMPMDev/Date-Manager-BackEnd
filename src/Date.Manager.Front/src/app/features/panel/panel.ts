@@ -2,21 +2,17 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { Router } from '@angular/router';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { AhoraService } from '../../core/ahora';
-import { Alerta, alertas } from '../../core/metricas';
-import { Cita, Cliente, Servicio } from '../../core/models';
+import { ApiError } from '../../core/api-error';
+import { Alerta, Inicio } from '../../core/inicio';
+import { InicioApi } from '../../core/inicio-api';
 import { SesionService } from '../../core/sesion';
 import { AgendaDiaComponent } from '../../shared/agenda-dia';
-import { aFechaISO, fechaLarga } from '../../shared/formato';
+import { fechaLarga } from '../../shared/formato';
 import { GraficaComponent } from '../../shared/grafica';
-import { nombreCompleto } from '../citas/citas-filtros';
-import { limitarAlertas, ocupacionSemana, serieCitasPorDia } from './panel-datos';
-import { calcularKpis, proximasCitas } from './panel-kpis';
+import { construirKpis, serieCitasPorDia, serieOcupacion } from './panel-presentacion';
 
-interface Datos {
-  servicios: Servicio[];
-  citas: Cita[];
-  clientes: Cliente[];
-}
+const SIN_PERMISO = 'No tienes permiso para ver esta información.';
+const NO_CARGO = 'No se pudo cargar el panel.';
 
 @Component({
   selector: 'app-panel',
@@ -27,15 +23,14 @@ interface Datos {
 })
 export class PanelComponent {
   private readonly repo = inject(AgendaRepo);
-  private readonly reloj = inject(AhoraService);
-  private readonly ahora = this.reloj.ahora;
+  private readonly api = inject(InicioApi);
+  private readonly ahora = inject(AhoraService).ahora;
   private readonly router = inject(Router);
   private readonly sesion = inject(SesionService);
 
   protected readonly fechaLarga = fechaLarga;
-  protected readonly nombreCompleto = nombreCompleto;
 
-  private readonly datos = signal<Datos | null>(null);
+  private readonly datos = signal<Inicio | null>(null);
   protected readonly error = signal('');
   private pedido = 0; // descarta respuestas que llegan tarde
 
@@ -47,32 +42,25 @@ export class PanelComponent {
     return nombre ? `Hola, ${nombre}. Así va el día` : 'Hola. Así va el día';
   });
 
-  protected readonly hoy = computed(() => aFechaISO(this.ahora()));
-
   protected readonly vista = computed(() => {
-    const datos = this.datos();
-    if (!datos) return null;
-    const d = { ...datos, ahora: this.ahora() }; // la hora corre aunque los datos no cambien
-    const hoy = aFechaISO(d.ahora);
-    const { visibles, extra } = limitarAlertas(alertas(d.servicios, d.citas, d.ahora));
+    const inicio = this.datos();
+    if (!inicio) return null;
     return {
-      kpis: calcularKpis(d),
-      alertas: visibles,
-      alertasExtra: extra,
-      proximas: proximasCitas(d.citas, d.ahora, 5).map(cita => ({
-        cita,
-        hoy: cita.fecha === hoy,
-        servicio: d.servicios.find(s => s.id === cita.servicioId),
-        cliente: d.clientes.find(c => c.id === cita.clienteId),
-      })),
-      citasPorDia: serieCitasPorDia(d.citas, hoy),
-      ocupacion: ocupacionSemana(d.servicios, d.citas, hoy),
+      fecha: inicio.fecha,
+      kpis: construirKpis(inicio),
+      alertas: inicio.alertas,
+      alertasExtra: inicio.alertasExtra,
+      proximas: inicio.proximas.map(cita => ({ cita, cliente: `${cita.clienteNombre} ${cita.clienteApellido}` })),
+      citasPorDia: serieCitasPorDia(inicio.citasPorDia),
+      ocupacion: serieOcupacion(inicio.ocupacionSemana),
     };
   });
 
   constructor() {
+    // Recarga al cambiar los datos del negocio y cada minuto, para que «en N min» y las próximas no se queden viejas.
     effect(() => {
       this.repo.cambios();
+      this.ahora();
       void this.cargar();
     });
   }
@@ -85,22 +73,18 @@ export class PanelComponent {
     void this.router.navigateByUrl('/citas');
   }
 
+  /** Sin `fecha`: el servidor decide cuál es «hoy» con la zona horaria del negocio. */
   private async cargar(): Promise<void> {
     const numero = ++this.pedido;
-    this.reloj.actualizar();
     try {
-      const [servicios, citas, clientes] = await Promise.all([
-        this.repo.servicios(),
-        this.repo.citas(),
-        this.repo.clientes(),
-      ]);
+      const inicio = await this.api.inicio();
       if (numero !== this.pedido) return;
-      this.datos.set({ servicios, citas, clientes });
+      this.datos.set(inicio);
       this.error.set('');
-    } catch {
+    } catch (e) {
       if (numero !== this.pedido) return;
       this.datos.set(null);
-      this.error.set('No se pudo cargar el panel.');
+      this.error.set(e instanceof ApiError && e.status === 403 ? SIN_PERMISO : NO_CARGO);
     }
   }
 }
