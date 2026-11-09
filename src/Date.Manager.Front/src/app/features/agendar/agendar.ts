@@ -160,7 +160,9 @@ export class AgendarComponent implements OnInit {
       const { estado } = await this.api.estado(this.codigo);
       if (numero !== this.apertura) return;
       if (estado !== 'Activo') {
-        this.cerrar(estado);
+        // Solo los tres estados conocidos cierran el enlace; cualquier otro valor es una respuesta inesperada.
+        if (estado === 'Vencido' || estado === 'Agotado' || estado === 'Desactivado') this.cerrar(estado);
+        else this.fallar(NO_ABRIO);
         return;
       }
       const servicios = await this.api.servicios(this.codigo);
@@ -170,12 +172,8 @@ export class AgendarComponent implements OnInit {
     } catch (e) {
       if (numero !== this.apertura) return;
       const cerrada = cerradaPorError(e);
-      if (cerrada) {
-        this.cerrar(cerrada);
-      } else {
-        this.errorApertura.set(mensajeDe(e, NO_ABRIO));
-        this.vista.set('falla');
-      }
+      if (cerrada) this.cerrar(cerrada);
+      else this.fallar(mensajeDe(e, NO_ABRIO));
     }
   }
 
@@ -236,6 +234,7 @@ export class AgendarComponent implements OnInit {
     }
     if (!servicio || !inicio || this.enviando()) return;
 
+    const numero = this.apertura; // si cambia el código de la ruta mientras tanto, el resultado ya no es de esta pantalla
     this.enviando.set(true);
     this.error.set('');
     this.erroresApi.set({});
@@ -252,13 +251,15 @@ export class AgendarComponent implements OnInit {
           correo: d.correo.trim(),
         },
       });
+      if (numero !== this.apertura) return;
       this.confirmada.set(cita);
       this.paso.set(3);
       this.enfocarTitulo();
     } catch (e) {
+      if (numero !== this.apertura) return;
       await this.alFallarElEnvio(e);
     } finally {
-      this.enviando.set(false);
+      if (numero === this.apertura) this.enviando.set(false);
     }
   }
 
@@ -302,8 +303,17 @@ export class AgendarComponent implements OnInit {
     this.enfocarTitulo();
   }
 
+  /** No se pudo abrir el enlace (red, 500, estado desconocido): mensaje con «Reintentar» y el foco en el título. */
+  private fallar(mensaje: string): void {
+    this.errorApertura.set(mensaje);
+    this.vista.set('falla');
+    this.enfocarTitulo();
+  }
+
   /** Vuelve al paso 1 sin servicio, hora ni datos (también al cambiar de enlace). */
   private reiniciar(): void {
+    this.pedido++; // una respuesta de horarios en vuelo ya no es de este flujo
+    this.enviando.set(false);
     this.confirmada.set(null);
     this.servicioId.set(null);
     this.elegido.set(null);
@@ -328,15 +338,18 @@ export class AgendarComponent implements OnInit {
   private async cargarLibres(): Promise<void> {
     const id = this.servicioId();
     const numero = ++this.pedido;
+    const apertura = this.apertura;
     if (!id) {
       this.libres.set([]);
       return;
     }
+    // Vale solo si no se pidió otra cosa ni cambió el enlace mientras llegaba.
+    const vigente = () => numero === this.pedido && apertura === this.apertura;
     try {
       const libres = await this.api.horarios(this.codigo, id, this.fecha());
-      if (numero === this.pedido) this.libres.set(libres);
+      if (vigente()) this.libres.set(libres);
     } catch (e) {
-      if (numero !== this.pedido) return;
+      if (!vigente()) return;
       const cerrada = cerradaPorError(e);
       if (cerrada) this.cerrar(cerrada);
       else this.error.set(mensajeDe(e, NO_HORARIOS));

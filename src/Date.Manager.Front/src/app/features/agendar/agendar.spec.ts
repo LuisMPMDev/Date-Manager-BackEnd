@@ -188,6 +188,30 @@ describe('AgendarComponent', () => {
       expect(alerta(p.el)).toBeUndefined();
     });
 
+    it('en la vista de fallo el foco queda en el título, también tras «Reintentar»', async () => {
+      const api = crearApi();
+      api.estado.mockRejectedValue(new ApiError(0, 'ERROR_RED', 'No se pudo contactar al servidor.'));
+      const p = await abrir(api);
+      expect(document.activeElement).toBe(p.el.querySelector('h1'));
+
+      (document.activeElement as HTMLElement).blur();
+      boton(p.el, 'Reintentar').click();
+      await esperar(p.harness);
+      expect(p.el.querySelector('h1')!.textContent).toContain('No pudimos abrir el enlace');
+      expect(document.activeElement).toBe(p.el.querySelector('h1'));
+    });
+
+    it('un estado inesperado de la API se trata como fallo y no como flujo ni como enlace cerrado', async () => {
+      const api = crearApi();
+      api.estado.mockResolvedValue({ estado: 'Pausado', venceEn: '2026-11-08T08:00:00Z' } as never);
+      const { el } = await abrir(api);
+      expect(el.querySelector('h1')!.textContent).toContain('No pudimos abrir el enlace');
+      expect(alerta(el)).toBeTruthy();
+      expect(boton(el, 'Reintentar')).toBeTruthy();
+      expect(servicios(el).length).toBe(0);
+      expect(api.servicios).not.toHaveBeenCalled();
+    });
+
     it('un 410 al cargar los servicios (el enlace cambió entre una llamada y otra) muestra el mensaje del estado', async () => {
       const api = crearApi();
       api.servicios.mockRejectedValue(new ApiError(410, 'ENLACE_AGOTADO', 'Este enlace ya no tiene reservas disponibles.'));
@@ -242,8 +266,8 @@ describe('AgendarComponent', () => {
     it('servicio, día, hora y datos válidos confirman la cita con los datos de la respuesta', async () => {
       const api = crearApi();
       api.reservar.mockResolvedValue({
-        servicioId: 'srv-estandar', servicio: 'Sesión estándar', fecha: '2026-11-10', inicio: '10:00', fin: '11:00',
-        estado: 'Confirmada',
+        servicioId: 'srv-estandar', servicio: 'Terapia confirmada por el servidor', fecha: '2026-11-10', inicio: '10:00',
+        fin: '11:00', estado: 'Confirmada',
       });
       const p = await abrir(api);
       expect(boton(p.el, 'Continuar').disabled).toBe(true);
@@ -270,7 +294,8 @@ describe('AgendarComponent', () => {
       const texto = p.el.textContent!;
       expect(p.el.querySelector('h1,h2')!.textContent).toContain('Cita confirmada');
       expect(texto).toContain('Confirmada');
-      expect(texto).toContain('Sesión estándar');
+      expect(texto).toContain('Terapia confirmada por el servidor'); // el nombre de la respuesta, no el de la selección local
+      expect(texto).not.toContain('Sesión estándar');
       expect(texto).toContain('Martes 10 de noviembre');
       expect(texto).toContain('10:00 – 11:00');
       expect(texto).toMatch(/80\D?000/);
@@ -362,6 +387,127 @@ describe('AgendarComponent', () => {
       const { el } = await abrir();
       const enlace = Array.from(el.querySelectorAll('a')).find(a => a.textContent?.trim() === 'Acceso del negocio')!;
       expect(enlace.getAttribute('href')).toBe('/login');
+    });
+  });
+
+  describe('respuestas que llegan tarde', () => {
+    function manual<T>() {
+      let resolver!: (v: T) => void;
+      let rechazar!: (e: unknown) => void;
+      const promesa = new Promise<T>((res, rej) => {
+        resolver = res;
+        rechazar = rej;
+      });
+      return { promesa, resolver, rechazar };
+    }
+    const textos = (el: HTMLElement) => huecos(el).map(h => h.textContent?.trim());
+    const clicServicio = (el: HTMLElement, nombre: string) =>
+      servicios(el).find(b => b.textContent?.includes(nombre))!.click();
+    const enviarYa = (el: HTMLElement) => el.querySelector('form')!.dispatchEvent(new Event('submit'));
+
+    it('una respuesta de horarios vieja (otro servicio) no pisa la lista nueva', async () => {
+      const api = crearApi();
+      const vieja = manual<string[]>();
+      api.horarios.mockImplementation(async (_c, servicioId) =>
+        servicioId === 'srv-estandar' ? vieja.promesa : ['09:00', '09:30', '10:00']);
+      const p = await abrir(api);
+      clicServicio(p.el, 'Sesión estándar'); // queda retenida
+      await esperar(p.harness);
+      await elegirServicio(p, 'Consulta inicial');
+      expect(textos(p.el)).toEqual(['09:00', '09:30', '10:00']);
+
+      vieja.resolver(['08:00', '11:00']);
+      await esperar(p.harness);
+      expect(textos(p.el)).toEqual(['09:00', '09:30', '10:00']);
+    });
+
+    it('una respuesta de horarios vieja (otra fecha) no pisa la lista nueva', async () => {
+      const api = crearApi();
+      const vieja = manual<string[]>();
+      api.horarios.mockImplementation(async (_c, _s, fecha) =>
+        fecha === '2026-11-09' ? vieja.promesa : ['10:00', '11:00']);
+      const p = await abrir(api);
+      clicServicio(p.el, 'Sesión estándar'); // fecha 9: retenida
+      await esperar(p.harness);
+      p.el.querySelector<HTMLButtonElement>('button[aria-label="Día siguiente"]')!.click();
+      await esperar(p.harness);
+      expect(textos(p.el)).toEqual(['10:00', '11:00']);
+
+      vieja.resolver(['08:00']);
+      await esperar(p.harness);
+      expect(textos(p.el)).toEqual(['10:00', '11:00']);
+    });
+
+    it('al cambiar el código de la ruta, los horarios del enlace anterior se descartan', async () => {
+      const api = crearApi();
+      const vieja = manual<string[]>();
+      api.horarios.mockImplementation(async (codigo, servicioId) =>
+        codigo === CODIGO ? vieja.promesa : (LIBRES[servicioId] ?? []));
+      const p = await abrir(api);
+      clicServicio(p.el, 'Sesión estándar');
+      await esperar(p.harness);
+
+      await p.harness.navigateByUrl('/agendar/otroCodigo');
+      await esperar(p.harness);
+      vieja.resolver(['08:00', '09:00']);
+      await esperar(p.harness);
+      expect(servicios(p.el).every(b => b.getAttribute('aria-pressed') === 'false')).toBe(true);
+      expect(huecos(p.el).length).toBe(0);
+    });
+
+    it('un 410 de horarios del enlace anterior no cierra el enlace nuevo', async () => {
+      const api = crearApi();
+      const vieja = manual<string[]>();
+      api.horarios.mockImplementation(async (codigo, servicioId) =>
+        codigo === CODIGO ? vieja.promesa : (LIBRES[servicioId] ?? []));
+      const p = await abrir(api);
+      clicServicio(p.el, 'Sesión estándar');
+      await esperar(p.harness);
+
+      await p.harness.navigateByUrl('/agendar/otroCodigo');
+      await esperar(p.harness);
+      vieja.rechazar(new ApiError(410, 'ENLACE_AGOTADO', 'x'));
+      await esperar(p.harness);
+      expect(p.el.querySelector('h1')!.textContent).toContain('Reserva tu cita');
+      expect(servicios(p.el).length).toBe(2);
+    });
+
+    it('una reserva en vuelo del enlace anterior no confirma nada en el enlace nuevo', async () => {
+      const api = crearApi();
+      const enVuelo = manual<CitaPublica>();
+      api.reservar.mockReturnValue(enVuelo.promesa);
+      const p = await abrir(api);
+      await irAlPaso2(p);
+      llenarDatos(p.el);
+      enviarYa(p.el);
+      await esperar(p.harness);
+      expect(api.reservar).toHaveBeenCalledTimes(1);
+
+      await p.harness.navigateByUrl('/agendar/otroCodigo');
+      await esperar(p.harness);
+      enVuelo.resolver({ servicioId: 'srv-estandar', servicio: 'Sesión estándar', fecha: '2026-11-09', inicio: '08:00', fin: '09:00', estado: 'Confirmada' });
+      await esperar(p.harness);
+      expect(p.el.querySelector('h1')!.textContent).toContain('Reserva tu cita');
+      expect(p.el.textContent).not.toContain('Cita confirmada');
+      expect(servicios(p.el).length).toBe(2);
+    });
+
+    it('un 410 de una reserva en vuelo del enlace anterior no cierra el enlace nuevo', async () => {
+      const api = crearApi();
+      const enVuelo = manual<CitaPublica>();
+      api.reservar.mockReturnValue(enVuelo.promesa);
+      const p = await abrir(api);
+      await irAlPaso2(p);
+      llenarDatos(p.el);
+      enviarYa(p.el);
+      await esperar(p.harness);
+
+      await p.harness.navigateByUrl('/agendar/otroCodigo');
+      await esperar(p.harness);
+      enVuelo.rechazar(new ApiError(410, 'ENLACE_AGOTADO', 'x'));
+      await esperar(p.harness);
+      expect(p.el.querySelector('h1')!.textContent).toContain('Reserva tu cita');
+      expect(servicios(p.el).length).toBe(2);
     });
   });
 

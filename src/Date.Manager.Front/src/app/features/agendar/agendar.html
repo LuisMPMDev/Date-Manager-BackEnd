@@ -98,7 +98,7 @@
           <p class="subtitulo">Guarda estos datos por si necesitas consultarla.</p>
           <p class="estado">{{ cita.estado }}</p>
           <div class="resumen">
-            {{ servicio()?.nombre }} · {{ servicio()?.duracionMin }} min
+            {{ cita.servicio }} · {{ servicio()?.duracionMin }} min
             <small>{{ fechaLarga(cita.fecha) }}, {{ cita.inicio }} – {{ cita.fin }} · {{ moneda(servicio()?.valor ?? 0) }}</small>
           </div>
           <p class="subtitulo">
