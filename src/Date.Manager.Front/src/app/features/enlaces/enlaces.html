@@ -8,13 +8,13 @@
   <div class="campos">
     <div class="campo">
       <label for="enlace-duracion">Duración (minutos)</label>
-      <input id="enlace-duracion" name="duracion" type="number" min="60" max="43200" step="1" inputmode="numeric"
+      <input id="enlace-duracion" name="duracion" type="text" inputmode="numeric" autocomplete="off"
              aria-describedby="enlace-duracion-ayuda" [value]="duracion()" (input)="escribirDuracion($event)" />
       <p class="ayuda" id="enlace-duracion-ayuda">De 60 a 43200 minutos (1440 son 24 horas).</p>
     </div>
     <div class="campo">
       <label for="enlace-usos">Máximo de usos (opcional)</label>
-      <input id="enlace-usos" name="usos" type="number" min="1" step="1" inputmode="numeric"
+      <input id="enlace-usos" name="usos" type="text" inputmode="numeric" autocomplete="off"
              aria-describedby="enlace-usos-ayuda" [value]="maxUsos()" (input)="escribirUsos($event)" />
       <p class="ayuda" id="enlace-usos-ayuda">Vacío: sin límite de usos.</p>
     </div>
@@ -45,8 +45,10 @@
   <p class="alerta" role="alert">{{ errorLista() }}</p>
 }
 
+<h3 id="titulo-lista" data-lista tabindex="-1">Enlaces creados</h3>
+
 <div class="tabla-scroll">
-  <table [attr.aria-busy]="cargando()">
+  <table aria-labelledby="titulo-lista" [attr.aria-busy]="cargando()">
     <thead>
       <tr>
         <th>Código</th>
@@ -71,7 +73,7 @@
                 <span class="pregunta">¿Desactivar el enlace {{ e.codigo }}?</span>
                 <button type="button" class="btn peligro" [disabled]="desactivando()"
                         (click)="confirmarDesactivar(e.id)">Sí, desactivar</button>
-                <button type="button" class="btn" (click)="volver(e.id)">No, volver</button>
+                <button type="button" class="btn" data-volver (click)="volver(e.id)">No, volver</button>
               </div>
             } @else {
               @if (e.estado === 'Activo') {
@@ -86,9 +88,11 @@
           </td>
         </tr>
       } @empty {
-        <tr class="vacio">
-          <td colspan="6">{{ cargando() ? 'Cargando enlaces…' : 'Todavía no hay enlaces. Crea el primero con el formulario.' }}</td>
-        </tr>
+        @if (cargando() || !errorLista()) {
+          <tr class="vacio">
+            <td colspan="6">{{ cargando() ? 'Cargando enlaces…' : 'Todavía no hay enlaces. Crea el primero con el formulario.' }}</td>
+          </tr>
+        }
       }
     </tbody>
   </table>

@@ -9,6 +9,7 @@ import { SesionService } from '../../core/sesion';
 import { ANDRES, MARTA, ROL_ADMIN, ROL_RECEPCION } from '../../core/sesion.pruebas';
 import { PanelShell } from '../../layout/panel-shell';
 import { EnlacesComponent } from './enlaces';
+import { fechaHora } from './enlaces-formato';
 
 const SIN_PERMISO = 'No tienes permiso para ver esta información.';
 
@@ -103,8 +104,8 @@ describe('EnlacesComponent', () => {
   }
 
   const urlDe = (ruta: string) => `${location.origin}${location.pathname}#${ruta}`;
-  const fechaLocal = (iso: string) =>
-    new Date(iso).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
+  /** El formato exacto se prueba (con zona fija) en enlaces-formato.spec.ts; aquí solo que se use. */
+  const fechaLocal = (iso: string) => fechaHora(iso);
 
   describe('lista', () => {
     it('muestra código, estado, usos y máximo, vencimiento en hora local y creador', async () => {
@@ -117,6 +118,7 @@ describe('EnlacesComponent', () => {
       expect(a.slice(0, 5)).toEqual(['CODIGO0001', 'Activo', '2 de 10', fechaLocal('2026-11-10T15:30:00Z'), 'Marta Ríos']);
       expect(b.slice(0, 5)).toEqual(['CODIGO0002', 'Vencido', '0 (sin límite)', fechaLocal('2026-11-10T15:30:00Z'), 'Andrés Lora']);
       expect(a[3]).toMatch(/2026/);
+      expect(a[3]).toMatch(/(UTC|GMT|[A-Z]{3,5})$/); // lleva el nombre de la zona
     });
 
     it('respeta el orden que trae la API (más nuevos primero)', async () => {
@@ -138,6 +140,13 @@ describe('EnlacesComponent', () => {
       const { el } = await crear();
       expect(alertas(el)).toEqual([SIN_PERMISO]);
       expect(filas(el)).toHaveLength(0);
+    });
+
+    it('con error al listar no afirma que no haya enlaces', async () => {
+      api().alListar = () => Promise.reject(new ApiError(500, 'ERROR_INTERNO', 'Algo falló en el servidor.'));
+      const { el } = await crear();
+      expect(el.textContent).not.toContain('Todavía no hay enlaces');
+      expect(el.textContent).not.toContain('Cargando enlaces');
     });
 
     it('otro error al listar muestra el mensaje de la API', async () => {
@@ -190,14 +199,39 @@ describe('EnlacesComponent', () => {
       expect(crearBtn.disabled).toBe(false);
     });
 
+    const MSG_DURACION = 'La duración debe ser un número entero de minutos entre 60 y 43200.';
+    const MSG_USOS = 'El máximo de usos debe ser un número entero entre 1 y 2147483647, o quedar vacío para no limitarlo.';
+
+    it('los campos numéricos son de texto: la validación es solo de `armarPeticion`', async () => {
+      const { el } = await crear();
+      for (const campo of [campoDuracion(el), campoUsos(el)]) {
+        expect(campo.type).toBe('text');
+        expect(campo.inputMode).toBe('numeric');
+      }
+    });
+
     it.each([
-      ['59', '', 'La duración debe ser un número entero de minutos entre 60 y 43200.'],
-      ['43201', '', 'La duración debe ser un número entero de minutos entre 60 y 43200.'],
-      ['', '', 'La duración debe ser un número entero de minutos entre 60 y 43200.'],
-      ['90.5', '', 'La duración debe ser un número entero de minutos entre 60 y 43200.'],
-      ['1440', '0', 'El máximo de usos debe ser un número entero de 1 o más, o quedar vacío para no limitarlo.'],
-      ['1440', '-2', 'El máximo de usos debe ser un número entero de 1 o más, o quedar vacío para no limitarlo.'],
-      ['1440', '2.5', 'El máximo de usos debe ser un número entero de 1 o más, o quedar vacío para no limitarlo.'],
+      ['59', '', MSG_DURACION],
+      ['43201', '', MSG_DURACION],
+      ['', '', MSG_DURACION],
+      ['90.5', '', MSG_DURACION],
+      ['abc', '', MSG_DURACION],
+      ['1e3', '', MSG_DURACION],
+      ['-60', '', MSG_DURACION],
+      ['99999999999', '', MSG_DURACION],
+      ['9'.repeat(400), '', MSG_DURACION],
+      ['1440', '0', MSG_USOS],
+      ['1440', '-1', MSG_USOS],
+      ['1440', '-2', MSG_USOS],
+      ['1440', '2.5', MSG_USOS],
+      ['1440', '1.5', MSG_USOS],
+      ['1440', 'abc', MSG_USOS],
+      ['1440', '-', MSG_USOS],
+      ['1440', '1e3', MSG_USOS],
+      ['1440', '1.', MSG_USOS],
+      ['1440', '2147483648', MSG_USOS],
+      ['1440', '99999999999', MSG_USOS],
+      ['1440', '9'.repeat(400), MSG_USOS],
     ])('con duración «%s» y usos «%s» avisa y no envía nada', async (duracion, usos, mensaje) => {
       const { fixture, el } = await crear();
       escribir(campoDuracion(el), duracion);
@@ -206,6 +240,29 @@ describe('EnlacesComponent', () => {
       await esperar(fixture);
       expect(api().creaciones).toHaveLength(0);
       expect(alertas(el)).toEqual([mensaje]);
+    });
+
+    it('recorta espacios: « 90 » en usos vale 90 y «  120 » en duración vale 120', async () => {
+      const { fixture, el } = await crear();
+      escribir(campoDuracion(el), '  120 ');
+      escribir(campoUsos(el), ' 90 ');
+      boton(el, 'Crear enlace')!.click();
+      await esperar(fixture);
+      expect(api().creaciones).toEqual([{ duracionMinutos: 120, maxUsos: 90 }]);
+    });
+
+    it('acepta el máximo entero del servidor (2147483647) y un máximo de usos solo de espacios cuenta como vacío', async () => {
+      const { fixture, el } = await crear();
+      escribir(campoUsos(el), '2147483647');
+      boton(el, 'Crear enlace')!.click();
+      await esperar(fixture);
+      escribir(campoUsos(el), '   ');
+      boton(el, 'Crear enlace')!.click();
+      await esperar(fixture);
+      expect(api().creaciones).toEqual([
+        { duracionMinutos: 1440, maxUsos: 2147483647 },
+        { duracionMinutos: 1440 },
+      ]);
     });
 
     it('acepta los límites 60 y 43200', async () => {
@@ -220,13 +277,13 @@ describe('EnlacesComponent', () => {
     });
 
     it('muestra el mensaje de un 400 de la API y deja los valores escritos', async () => {
-      api().alCrear = () => Promise.reject(new ApiError(400, 'VALIDACION', 'El máximo de usos no puede superar 1000.'));
+      api().alCrear = () => Promise.reject(new ApiError(400, 'VALIDACION', 'El máximo de usos debe ser al menos 1, o vacío para no tener límite.'));
       const { fixture, el } = await crear();
-      escribir(campoUsos(el), '5000');
+      escribir(campoUsos(el), '5');
       boton(el, 'Crear enlace')!.click();
       await esperar(fixture);
-      expect(alertas(el)).toEqual(['El máximo de usos no puede superar 1000.']);
-      expect(campoUsos(el).value).toBe('5000');
+      expect(alertas(el)).toEqual(['El máximo de usos debe ser al menos 1, o vacío para no tener límite.']);
+      expect(campoUsos(el).value).toBe('5');
       expect(boton(el, 'Crear enlace')!.disabled).toBe(false);
     });
 
@@ -293,6 +350,49 @@ describe('EnlacesComponent', () => {
       expect(estados(el)).toBe('No se pudo copiar automáticamente. Selecciona el texto y cópialo.');
     });
 
+    it('«Enlace copiado.» se borra solo tras unos segundos', async () => {
+      portapapeles({ writeText: vi.fn().mockResolvedValue(undefined) });
+      const { fixture, el } = await crear();
+      vi.useFakeTimers();
+      try {
+        boton(filas(el)[0], 'Copiar enlace')!.click();
+        await vi.advanceTimersByTimeAsync(0);
+        fixture.detectChanges();
+        expect(estados(el)).toBe('Enlace copiado.');
+        await vi.advanceTimersByTimeAsync(6000);
+        fixture.detectChanges();
+        expect(estados(el)).toBe('');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('el aviso también se borra al empezar otra acción', async () => {
+      portapapeles({ writeText: vi.fn().mockResolvedValue(undefined) });
+      const { fixture, el } = await crear();
+      boton(filas(el)[0], 'Copiar enlace')!.click();
+      await esperar(fixture);
+      expect(estados(el)).toBe('Enlace copiado.');
+      boton(filas(el)[0], 'Desactivar')!.click();
+      fixture.detectChanges();
+      expect(estados(el)).toBe('');
+    });
+
+    it('al destruir la pantalla no queda ningún temporizador pendiente', async () => {
+      portapapeles({ writeText: vi.fn().mockResolvedValue(undefined) });
+      const { fixture, el } = await crear();
+      vi.useFakeTimers();
+      try {
+        boton(filas(el)[0], 'Copiar enlace')!.click();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(vi.getTimerCount()).toBeGreaterThan(0);
+        fixture.destroy();
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('cada enlace Activo de la lista se puede copiar; los demás no', async () => {
       const escribirTexto = vi.fn().mockResolvedValue(undefined);
       portapapeles({ writeText: escribirTexto });
@@ -316,6 +416,41 @@ describe('EnlacesComponent', () => {
       expect(api().desactivaciones).toHaveLength(0);
       expect(filas(el)[0].textContent).toContain('¿Desactivar el enlace CODIGO0001?');
       expect(boton(filas(el)[0], 'Sí, desactivar')).toBeDefined();
+    });
+
+    it('al abrir la confirmación el foco pasa a «No, volver»', async () => {
+      const { fixture, el } = await crear();
+      boton(filas(el)[0], 'Desactivar')!.click();
+      await esperar(fixture);
+      expect(document.activeElement).toBe(boton(filas(el)[0], 'No, volver'));
+    });
+
+    it('tras confirmar con éxito el foco queda en el encabezado de la lista, no en el body', async () => {
+      const { fixture, el } = await crear();
+      boton(filas(el)[0], 'Desactivar')!.click();
+      await esperar(fixture);
+      boton(filas(el)[0], 'Sí, desactivar')!.click();
+      await esperar(fixture);
+      expect(document.activeElement).toBe(el.querySelector('[data-lista]'));
+    });
+
+    it('tras confirmar con error el foco también queda en el encabezado de la lista', async () => {
+      api().alDesactivar = () => Promise.reject(new ApiError(404, 'NO_ENCONTRADO', 'El enlace ya no existe.'));
+      const { fixture, el } = await crear();
+      boton(filas(el)[0], 'Desactivar')!.click();
+      await esperar(fixture);
+      boton(filas(el)[0], 'Sí, desactivar')!.click();
+      await esperar(fixture);
+      expect(document.activeElement).toBe(el.querySelector('[data-lista]'));
+    });
+
+    it('«No, volver» devuelve el foco a «Desactivar»', async () => {
+      const { fixture, el } = await crear();
+      boton(filas(el)[0], 'Desactivar')!.click();
+      await esperar(fixture);
+      boton(filas(el)[0], 'No, volver')!.click();
+      await esperar(fixture);
+      expect(document.activeElement).toBe(boton(filas(el)[0], 'Desactivar'));
     });
 
     it('«No, volver» cancela sin llamar a la API', async () => {
