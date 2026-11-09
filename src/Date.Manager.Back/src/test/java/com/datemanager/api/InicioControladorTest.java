@@ -58,9 +58,13 @@ class InicioControladorTest extends PruebaPanel {
     }
 
     private UUID crearCliente(String nombre, String apellido) {
+        return crearCliente(nombre, apellido, "300 1");
+    }
+
+    private UUID crearCliente(String nombre, String apellido, String telefono) {
         UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO cliente (id, nombre, apellido, telefono, correo) VALUES (?, ?, ?, '300 1', ?)",
-                id, nombre, apellido, id + "@x.co");
+        jdbc.update("INSERT INTO cliente (id, nombre, apellido, telefono, correo) VALUES (?, ?, ?, ?, ?)",
+                id, nombre, apellido, telefono, id + "@x.co");
         return id;
     }
 
@@ -160,7 +164,7 @@ class InicioControladorTest extends PruebaPanel {
     @Test
     void laProximaYLasProximasSonLasConfirmadasQueAunNoEmpiezanOrdenadasHastaCinco() throws Exception {
         UUID a = lunesDeOchoADoce("Servicio A");
-        UUID clienteNuevo = crearCliente("Luis", "Gómez");
+        UUID clienteNuevo = crearCliente("Luis", "Gómez", "310 555 22");
         confirmada(a, "2026-11-12", "09:00", "10:00");
         confirmada(a, "2026-11-09", "07:30", "08:30"); // ya empezó
         cita(a, "2026-11-09", "09:00", "10:00", "Atendida");
@@ -186,11 +190,14 @@ class InicioControladorTest extends PruebaPanel {
                 .andExpect(jsonPath("$.proximas[0].clienteNombre").value("Ana"))
                 .andExpect(jsonPath("$.proximas[0].clienteApellido").value("Pérez"))
                 .andExpect(jsonPath("$.proximas[1].minutosHasta").value(120))
+                .andExpect(jsonPath("$.proximas[0].clienteTelefono").value("300 1"))
                 .andExpect(jsonPath("$.proximas[1].clienteNombre").value("Luis"))
+                .andExpect(jsonPath("$.proximas[1].clienteTelefono").value("310 555 22"))
                 .andExpect(jsonPath("$.proximas[2].esHoy").value(false))
                 .andExpect(jsonPath("$.proximas[2].minutosHasta").doesNotExist())
                 // la próxima cita es la primera de las próximas
                 .andExpect(jsonPath("$.proxima.id").value(ahoraMismo.toString()))
+                .andExpect(jsonPath("$.proxima.clienteTelefono").value("300 1"))
                 .andExpect(jsonPath("$.proxima.inicio").value("08:00"))
                 .andExpect(jsonPath("$.proxima.minutosHasta").value(0));
     }

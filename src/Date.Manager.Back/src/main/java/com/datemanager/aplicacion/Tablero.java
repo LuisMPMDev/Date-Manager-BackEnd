@@ -37,6 +37,6 @@ public record Tablero(
 
     /** Cita por venir con los nombres que el tablero muestra; {@code minutosHasta} solo si es hoy. */
     public record ProximaCita(Cita cita, String servicioNombre, String clienteNombre, String clienteApellido,
-            boolean esHoy, OptionalInt minutosHasta) {
+            String clienteTelefono, boolean esHoy, OptionalInt minutosHasta) {
     }
 }

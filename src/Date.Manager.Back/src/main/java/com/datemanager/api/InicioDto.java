@@ -64,13 +64,14 @@ public record InicioDto(
     }
 
     public record ProximaCitaDto(UUID id, UUID servicioId, String servicioNombre, UUID clienteId, String clienteNombre,
-            String clienteApellido, String fecha, String inicio, String fin, boolean esHoy, Integer minutosHasta) {
+            String clienteApellido, String clienteTelefono, String fecha, String inicio, String fin, boolean esHoy,
+            Integer minutosHasta) {
 
         static ProximaCitaDto de(Tablero.ProximaCita p) {
             Cita c = p.cita();
             return new ProximaCitaDto(c.id(), c.servicioId(), p.servicioNombre(), c.clienteId(), p.clienteNombre(),
-                    p.clienteApellido(), c.fecha().format(FormatoFechas.FECHA), c.inicio().format(FormatoFechas.HORA),
-                    c.fin().format(FormatoFechas.HORA), p.esHoy(),
+                    p.clienteApellido(), p.clienteTelefono(), c.fecha().format(FormatoFechas.FECHA),
+                    c.inicio().format(FormatoFechas.HORA), c.fin().format(FormatoFechas.HORA), p.esHoy(),
                     p.minutosHasta().isPresent() ? p.minutosHasta().getAsInt() : null);
         }
     }

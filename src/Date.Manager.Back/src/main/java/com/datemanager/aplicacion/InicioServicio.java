@@ -151,8 +151,8 @@ public class InicioServicio {
                     ? OptionalInt.of(minutos(c.inicio()) - minutos(ahoraLocal.toLocalTime()))
                     : OptionalInt.empty();
             return new ProximaCita(c, nombres.getOrDefault(c.servicioId(), "Servicio"),
-                    cliente == null ? "" : cliente.nombre(), cliente == null ? "" : cliente.apellido(), esHoy,
-                    minutosHasta);
+                    cliente == null ? "" : cliente.nombre(), cliente == null ? "" : cliente.apellido(),
+                    cliente == null ? "" : cliente.telefono(), esHoy, minutosHasta);
         }).toList();
     }
 
