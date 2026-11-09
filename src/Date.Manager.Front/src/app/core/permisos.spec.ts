@@ -13,14 +13,16 @@ function usuario(parcial: Partial<Usuario> = {}): Usuario {
 }
 
 describe('permisos', () => {
-  it('el catálogo tiene los 8 permisos con etiqueta en español', () => {
-    expect(CATALOGO_PERMISOS.length).toBe(8);
+  it('el catálogo tiene los 9 permisos con etiqueta en español', () => {
+    expect(CATALOGO_PERMISOS.length).toBe(9);
     expect(CATALOGO_PERMISOS.find(p => p.id === 'gestionar_citas')!.etiqueta).toBe('Cancelar y mover citas');
+    expect(CATALOGO_PERMISOS.find(p => p.id === 'gestionar_enlaces')!.etiqueta).toBe('Gestionar enlaces de invitación');
   });
 
   it('el menú tiene las rutas en orden', () => {
-    expect(MENU.map(m => m.ruta)).toEqual(['/panel', '/agenda', '/citas', '/servicios', '/clientes', '/usuarios']);
+    expect(MENU.map(m => m.ruta)).toEqual(['/panel', '/agenda', '/citas', '/servicios', '/clientes', '/usuarios', '/enlaces']);
     expect(MENU[5].etiqueta).toBe('Usuarios y roles');
+    expect(MENU[6]).toEqual({ ruta: '/enlaces', etiqueta: 'Enlaces', permisos: ['gestionar_enlaces'] });
   });
 
   it('gestionar_citas añade ver_citas', () => {
@@ -51,6 +53,10 @@ describe('permisos', () => {
 
   it('primeraRuta con ver_panel es /panel', () => {
     expect(primeraRuta(rol({ permisos: ['ver_citas', 'ver_panel'] }))).toBe('/panel');
+  });
+
+  it('primeraRuta de un rol con solo gestionar_enlaces es /enlaces', () => {
+    expect(primeraRuta(rol({ permisos: ['gestionar_enlaces'] }))).toBe('/enlaces');
   });
 
   it('primeraRuta con ninguno es /sin-acceso', () => {

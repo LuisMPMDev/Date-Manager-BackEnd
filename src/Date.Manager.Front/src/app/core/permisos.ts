@@ -9,6 +9,7 @@ export const CATALOGO_PERMISOS: { id: Permiso; etiqueta: string }[] = [
   { id: 'gestionar_clientes', etiqueta: 'Gestionar clientes' },
   { id: 'gestionar_usuarios', etiqueta: 'Gestionar usuarios' },
   { id: 'gestionar_roles', etiqueta: 'Gestionar roles y permisos' },
+  { id: 'gestionar_enlaces', etiqueta: 'Gestionar enlaces de invitación' },
 ];
 
 /** Una entrada es visible si el rol tiene ALGUNO de sus permisos. */
@@ -19,6 +20,7 @@ export const MENU: { ruta: string; etiqueta: string; permisos: Permiso[] }[] = [
   { ruta: '/servicios', etiqueta: 'Servicios', permisos: ['gestionar_servicios'] },
   { ruta: '/clientes', etiqueta: 'Clientes', permisos: ['gestionar_clientes'] },
   { ruta: '/usuarios', etiqueta: 'Usuarios y roles', permisos: ['gestionar_usuarios', 'gestionar_roles'] },
+  { ruta: '/enlaces', etiqueta: 'Enlaces', permisos: ['gestionar_enlaces'] },
 ];
 
 /** gestionar_citas y atender_citas requieren ver_citas. */
