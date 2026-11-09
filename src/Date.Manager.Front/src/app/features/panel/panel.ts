@@ -13,6 +13,7 @@ import { construirKpis, serieCitasPorDia, serieOcupacion } from './panel-present
 
 const SIN_PERMISO = 'No tienes permiso para ver esta información.';
 const NO_CARGO = 'No se pudo cargar el panel.';
+const NO_ACTUALIZO = 'No se pudo actualizar el panel.';
 
 @Component({
   selector: 'app-panel',
@@ -32,6 +33,8 @@ export class PanelComponent {
 
   private readonly datos = signal<Inicio | null>(null);
   protected readonly error = signal('');
+  /** Aviso discreto: una recarga falló pero siguen a la vista los datos de la última carga buena. */
+  protected readonly aviso = signal('');
   private pedido = 0; // descarta respuestas que llegan tarde
 
   /** «Abrir» lleva a Citas: sin ese permiso el botón solo rebotaría. */
@@ -81,10 +84,18 @@ export class PanelComponent {
       if (numero !== this.pedido) return;
       this.datos.set(inicio);
       this.error.set('');
+      this.aviso.set('');
     } catch (e) {
       if (numero !== this.pedido) return;
+      const sinPermiso = e instanceof ApiError && e.status === 403;
+      if (this.datos() && !sinPermiso) {
+        // Una recarga fallida no borra un tablero que estaba bien: se deja una nota hasta la siguiente carga correcta.
+        this.aviso.set(NO_ACTUALIZO);
+        return;
+      }
       this.datos.set(null);
-      this.error.set(e instanceof ApiError && e.status === 403 ? SIN_PERMISO : NO_CARGO);
+      this.aviso.set('');
+      this.error.set(sinPermiso ? SIN_PERMISO : NO_CARGO);
     }
   }
 }

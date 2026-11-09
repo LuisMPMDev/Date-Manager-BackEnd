@@ -1,12 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Inicio } from '../../core/inicio';
+import { INICIO, INICIO_VACIO } from '../../core/inicio.pruebas';
 import { SesionService } from '../../core/sesion';
 import { rolDe } from '../../core/sesion.pruebas';
 import { moneda } from '../../shared/formato';
 import { sembrar } from '../../testing/seed';
 import {
-  AHORA, api, botonesAlerta, celdas, configurar, crear, esperar, filasProximas, GraficaDoble, INICIO, INICIO_VACIO, kpi,
+  AHORA, api, botonesAlerta, celdas, configurar, crear, esperar, filasProximas, GraficaDoble, kpi,
   repo, textosAlerta,
 } from './panel.pruebas';
 
@@ -176,8 +177,11 @@ describe('PanelComponent', () => {
 
     it('muestra la fecha junto a la hora cuando la cita no es de hoy', async () => {
       const { el } = await crear();
-      expect(celdas(filasProximas(el)[1])[0]).toBe('11:00Martes 10 de noviembre') // la fecha es un bloque aparte debajo de la hora;
-      expect(celdas(filasProximas(el)[0])[0]).not.toMatch(/ de /);
+      const [hoy, otroDia] = filasProximas(el);
+      expect(otroDia.querySelector('strong')!.textContent?.trim()).toBe('11:00');
+      expect(otroDia.querySelector('small.fecha')!.textContent?.trim()).toBe('Martes 10 de noviembre');
+      expect(hoy.querySelector('strong')!.textContent?.trim()).toBe('09:30');
+      expect(hoy.querySelector('small.fecha')).toBeNull();
     });
 
     it('«Abrir» lleva a Citas', async () => {
@@ -260,6 +264,7 @@ describe('PanelComponent', () => {
         await esperar(fixture);
         expect(api().llamadas).toHaveLength(2);
         expect(kpi(el, 'Próxima cita').detalle).toBe('en 89 min · Corte de cabello');
+        expect(api().llamadas.every(f => f === undefined)).toBe(true); // el tick tampoco manda fecha
       } finally {
         vi.useRealTimers();
       }

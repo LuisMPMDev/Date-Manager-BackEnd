@@ -1,8 +1,10 @@
 import { ApiError } from '../../core/api-error';
 import { Inicio } from '../../core/inicio';
-import { api, configurar, crear, esperar, INICIO, kpi, repo } from './panel.pruebas';
+import { INICIO } from '../../core/inicio.pruebas';
+import { api, configurar, crear, esperar, kpi, repo } from './panel.pruebas';
 
 const AVISO_403 = 'No tienes permiso para ver esta información.';
+const AVISO_RECARGA = 'No se pudo actualizar el panel.';
 
 describe('PanelComponent: cargas', () => {
   beforeEach(async () => {
@@ -56,5 +58,56 @@ describe('PanelComponent: cargas', () => {
     expect(el.textContent).not.toContain('No se pudo cargar el panel.');
     expect(el.querySelector('h2')).not.toBeNull();
     expect(el.querySelectorAll('.kpi')).toHaveLength(0);
+  });
+  describe('una recarga posterior', () => {
+    /** Fuerza una recarga (sube `cambios`) y deja que termine. */
+    const recargar = async (fixture: Parameters<typeof esperar>[0]) => {
+      await repo().guardarServicio((await repo().servicios())[0]);
+      await esperar(fixture);
+    };
+
+    it('si falla, conserva las cifras anteriores y avisa sin bloquear', async () => {
+      const { fixture, el } = await crear();
+      api().respuesta = () => Promise.reject(new ApiError(0, 'ERROR_RED', 'sin conexión'));
+      await recargar(fixture);
+
+      expect(kpi(el, 'Citas hoy').valor).toBe('4');
+      expect(el.querySelectorAll('.kpi')).toHaveLength(6);
+      expect(el.querySelector('[role="alert"]')).toBeNull();
+      expect(el.querySelector('[role="status"]')?.textContent?.trim()).toBe(AVISO_RECARGA);
+    });
+
+    it('si responde 403, vacía el tablero y muestra el aviso de «sin permiso»', async () => {
+      const { fixture, el } = await crear();
+      api().respuesta = () => Promise.reject(new ApiError(403, 'SIN_PERMISO', 'No tienes permiso para esta acción.'));
+      await recargar(fixture);
+
+      expect(el.querySelector('[role="alert"]')?.textContent?.trim()).toBe(AVISO_403);
+      expect(el.querySelectorAll('.kpi')).toHaveLength(0);
+      expect(el.querySelector('[role="status"]')).toBeNull();
+    });
+
+    it('la siguiente recarga correcta actualiza las cifras y quita el aviso', async () => {
+      const { fixture, el } = await crear();
+      api().respuesta = () => Promise.reject(new ApiError(500, 'ERROR_INTERNO', 'falló'));
+      await recargar(fixture);
+      expect(el.querySelector('[role="status"]')).not.toBeNull();
+
+      api().respuesta = () => Promise.resolve({ ...INICIO, citasHoy: { total: 9, atendidas: 2 } });
+      await recargar(fixture);
+      expect(kpi(el, 'Citas hoy')).toEqual({ valor: '9', detalle: '2 ya atendidas' });
+      expect(el.querySelector('[role="status"]')).toBeNull();
+      expect(el.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it('tras un 403 la siguiente recarga correcta restaura el tablero', async () => {
+      const { fixture, el } = await crear();
+      api().respuesta = () => Promise.reject(new ApiError(403, 'SIN_PERMISO', 'No tienes permiso para esta acción.'));
+      await recargar(fixture);
+      api().respuesta = () => Promise.resolve(INICIO);
+      await recargar(fixture);
+      expect(el.querySelectorAll('.kpi')).toHaveLength(6);
+      expect(el.querySelector('[role="alert"]')).toBeNull();
+    });
   });
 });

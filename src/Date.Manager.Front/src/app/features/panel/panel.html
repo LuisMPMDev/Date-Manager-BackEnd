@@ -4,6 +4,10 @@
   <p class="error" role="alert">{{ error() }}</p>
 }
 
+@if (aviso()) {
+  <p class="aviso" role="status">{{ aviso() }}</p>
+}
+
 @if (vista(); as v) {
   <ul class="kpis" aria-label="Indicadores">
     @for (k of v.kpis; track k.id) {

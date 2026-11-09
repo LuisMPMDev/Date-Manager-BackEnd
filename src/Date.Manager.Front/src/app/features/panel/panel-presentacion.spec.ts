@@ -1,7 +1,7 @@
 import { Inicio } from '../../core/inicio';
 import { moneda } from '../../shared/formato';
 import { construirKpis, serieCitasPorDia, serieOcupacion } from './panel-presentacion';
-import { INICIO, INICIO_VACIO } from './panel.pruebas';
+import { INICIO, INICIO_VACIO } from '../../core/inicio.pruebas';
 
 const kpiDe = (inicio: Inicio, id: string) => construirKpis(inicio).find(k => k.id === id)!;
 
@@ -47,6 +47,11 @@ describe('construirKpis', () => {
     expect(sinVariacion.filter(k => ['ocupacion', 'nuevas', 'canceladas', 'ingresos'].includes(k.id)).map(k => k.detalle))
       .toEqual(['—', '—', '—', '—']);
     expect(sinVariacion.every(k => k.tono === 'neutro')).toBe(true);
+  });
+
+  it('una variación nula (null en el JSON) también se muestra como «—»', () => {
+    const conNulo = { ...INICIO, ingresos: { actual: 5, anterior: 0, variacion: null } } as unknown as Inicio;
+    expect(kpiDe(conNulo, 'ingresos')).toMatchObject({ detalle: '—', tono: 'neutro' });
   });
 
   it('los ingresos llevan formato de moneda', () => {

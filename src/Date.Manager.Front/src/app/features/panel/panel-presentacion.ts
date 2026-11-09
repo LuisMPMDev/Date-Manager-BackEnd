@@ -31,10 +31,11 @@ const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 's
  * Sin variación (el valor anterior era 0, no hay con qué comparar) solo queda «—».
  */
 function comparar(c: Comparacion, contra: string, subeEsBueno: boolean): Pick<Kpi, 'detalle' | 'tono'> {
-  if (c.variacion === undefined) return { detalle: '—', tono: 'neutro' };
-  const pct = Math.round(Math.abs(c.variacion) * 100);
+  const { variacion } = c;
+  if (typeof variacion !== 'number') return { detalle: '—', tono: 'neutro' }; // ausente o null en el JSON
+  const pct = Math.round(Math.abs(variacion) * 100);
   if (pct === 0) return { detalle: `Sin cambios vs. ${contra}`, tono: 'neutro' };
-  const sube = c.variacion > 0;
+  const sube = variacion > 0;
   return { detalle: `${sube ? '▲' : '▼'} ${pct}% vs. ${contra}`, tono: sube === subeEsBueno ? 'ok' : 'mal' };
 }
 
