@@ -1,0 +1,181 @@
+.cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.formulario,
+.resultado {
+  margin-bottom: 14px;
+  padding: 12px;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+.campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px 10px;
+}
+
+.campo {
+  min-width: 0;
+}
+
+label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--apoyo);
+}
+
+input[type='text'],
+input[type='number'] {
+  width: 100%;
+  padding: 7px 8px;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+.ayuda {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--apoyo);
+}
+
+.url {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.url input {
+  flex: 1 1 260px;
+  min-width: 0;
+  background: var(--cobalto-claro);
+}
+
+.aviso-ok {
+  margin: 0 0 8px;
+  min-height: 1.4em;
+  font-weight: 600;
+}
+
+.alerta {
+  margin: 12px 0;
+  padding: 8px 10px;
+  border-left: 4px solid var(--rojo);
+  background: var(--fondo);
+  font-weight: 600;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tabla-scroll {
+  overflow-x: auto;
+  border: var(--borde);
+  background: var(--blanco);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  text-align: left;
+  color: var(--apoyo);
+  font-weight: 600;
+  border-bottom: var(--borde);
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rayado);
+  vertical-align: top;
+}
+
+code {
+  font-family: Consolas, 'Courier New', monospace;
+  overflow-wrap: anywhere;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.vacio td {
+  padding: 16px 10px;
+  color: var(--apoyo);
+  text-align: center;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0 6px;
+  border: var(--borde);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chip.activo {
+  border-color: var(--verde);
+  color: var(--verde);
+}
+
+.chip.vencido,
+.chip.agotado {
+  border-color: var(--ambar);
+  color: var(--tinta);
+  background: var(--ambar-claro);
+}
+
+.chip.desactivado {
+  border-color: var(--apoyo);
+  color: var(--apoyo);
+}
+
+.acciones-fila {
+  white-space: nowrap;
+}
+
+.acciones-fila .btn {
+  margin-right: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.confirmar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  white-space: normal;
+}
+
+.confirmar .pregunta {
+  margin-right: 4px;
+  font-weight: 600;
+}

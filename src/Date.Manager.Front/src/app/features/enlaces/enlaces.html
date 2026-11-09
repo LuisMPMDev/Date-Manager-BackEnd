@@ -1,0 +1,95 @@
+<div class="cabecera">
+  <h2>Enlaces</h2>
+</div>
+
+<form class="formulario" (submit)="crear($event)" novalidate aria-labelledby="titulo-crear">
+  <h3 id="titulo-crear">Crear enlace</h3>
+
+  <div class="campos">
+    <div class="campo">
+      <label for="enlace-duracion">Duración (minutos)</label>
+      <input id="enlace-duracion" name="duracion" type="number" min="60" max="43200" step="1" inputmode="numeric"
+             aria-describedby="enlace-duracion-ayuda" [value]="duracion()" (input)="escribirDuracion($event)" />
+      <p class="ayuda" id="enlace-duracion-ayuda">De 60 a 43200 minutos (1440 son 24 horas).</p>
+    </div>
+    <div class="campo">
+      <label for="enlace-usos">Máximo de usos (opcional)</label>
+      <input id="enlace-usos" name="usos" type="number" min="1" step="1" inputmode="numeric"
+             aria-describedby="enlace-usos-ayuda" [value]="maxUsos()" (input)="escribirUsos($event)" />
+      <p class="ayuda" id="enlace-usos-ayuda">Vacío: sin límite de usos.</p>
+    </div>
+  </div>
+
+  @if (errorForm()) {
+    <p class="alerta" role="alert">{{ errorForm() }}</p>
+  }
+
+  <div class="acciones">
+    <button type="submit" class="btn primario" [disabled]="creando()">Crear enlace</button>
+  </div>
+</form>
+
+@if (urlCreada()) {
+  <div class="resultado">
+    <label for="enlace-url">Enlace para compartir con el cliente</label>
+    <div class="url">
+      <input id="enlace-url" type="text" readonly [value]="urlCreada()" (focus)="seleccionar($event)" />
+      <button type="button" class="btn primario" (click)="copiar(urlCreada())">Copiar</button>
+    </div>
+  </div>
+}
+
+<p class="aviso-ok" role="status">{{ aviso() }}</p>
+
+@if (errorLista()) {
+  <p class="alerta" role="alert">{{ errorLista() }}</p>
+}
+
+<div class="tabla-scroll">
+  <table [attr.aria-busy]="cargando()">
+    <thead>
+      <tr>
+        <th>Código</th>
+        <th>Estado</th>
+        <th>Usos</th>
+        <th>Vence</th>
+        <th>Creado por</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (e of enlaces(); track e.id) {
+        <tr [attr.data-enlace]="e.id">
+          <td><code>{{ e.codigo }}</code></td>
+          <td><span [class]="'chip ' + e.estado.toLowerCase()">{{ e.estado }}</span></td>
+          <td class="nowrap">{{ e.maxUsos === undefined ? e.usos + ' (sin límite)' : e.usos + ' de ' + e.maxUsos }}</td>
+          <td class="nowrap">{{ fechaHora(e.venceEn) }}</td>
+          <td>{{ e.creadoPorNombre }}</td>
+          <td class="acciones-fila">
+            @if (confirmando() === e.id) {
+              <div class="confirmar" role="group" [attr.aria-label]="'Confirmar desactivación del enlace ' + e.codigo">
+                <span class="pregunta">¿Desactivar el enlace {{ e.codigo }}?</span>
+                <button type="button" class="btn peligro" [disabled]="desactivando()"
+                        (click)="confirmarDesactivar(e.id)">Sí, desactivar</button>
+                <button type="button" class="btn" (click)="volver(e.id)">No, volver</button>
+              </div>
+            } @else {
+              @if (e.estado === 'Activo') {
+                <button type="button" class="btn" [attr.aria-label]="'Copiar enlace ' + e.codigo"
+                        (click)="copiar(urlCompleta(e.ruta))">Copiar enlace</button>
+              }
+              @if (e.estado !== 'Desactivado') {
+                <button type="button" class="btn peligro" data-desactivar [attr.aria-label]="'Desactivar enlace ' + e.codigo"
+                        (click)="pedirDesactivar(e.id)">Desactivar</button>
+              }
+            }
+          </td>
+        </tr>
+      } @empty {
+        <tr class="vacio">
+          <td colspan="6">{{ cargando() ? 'Cargando enlaces…' : 'Todavía no hay enlaces. Crea el primero con el formulario.' }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

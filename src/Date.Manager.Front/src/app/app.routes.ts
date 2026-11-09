@@ -55,6 +55,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/usuarios/usuarios').then(m => m.UsuariosComponent),
       },
       {
+        path: 'enlaces',
+        canActivate: [conPermiso],
+        data: { permisos: ['gestionar_enlaces'] },
+        loadComponent: () => import('./features/enlaces/enlaces').then(m => m.EnlacesComponent),
+      },
+      {
         path: 'sin-acceso',
         loadComponent: () => import('./features/sin-acceso/sin-acceso').then(m => m.SinAccesoComponent),
       },
