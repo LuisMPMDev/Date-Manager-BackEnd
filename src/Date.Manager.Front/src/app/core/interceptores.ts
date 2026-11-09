@@ -24,13 +24,19 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   return next(req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }));
 };
 
-/** Traduce todo error HTTP a ApiError y avisa si venció la sesión (401 en una ruta con Bearer). */
+/**
+ * Traduce todo error HTTP a ApiError y avisa si venció la sesión: un 401 en una ruta que lleva Bearer
+ * estando guardado el token. Decide por ruta y token, no por la cabecera, así no depende del orden
+ * en que se registren los interceptores.
+ */
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const expirada = inject(SesionExpirada);
+  const tokens = inject(TokenStore);
+  const apiUrl = inject(API_URL);
   return next(req).pipe(
     catchError((e: unknown) => {
       if (!(e instanceof HttpErrorResponse)) return throwError(() => e);
-      if (e.status === 401 && req.headers.has('Authorization')) expirada.emitir();
+      if (e.status === 401 && llevaToken(req.url, req.method, apiUrl) && tokens.leer()) expirada.emitir();
       return throwError(() => ApiError.desde(e));
     }),
   );

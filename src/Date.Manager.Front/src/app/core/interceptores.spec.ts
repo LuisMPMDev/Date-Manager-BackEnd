@@ -11,12 +11,12 @@ const API = 'http://localhost:8080/api';
 const NO_AUTENTICADO = { codigo: 'NO_AUTENTICADO', mensaje: 'Sesión vencida.' };
 const R401 = { status: 401, statusText: 'Unauthorized' };
 
-function configurar() {
+function configurar(interceptores = [authInterceptor, errorInterceptor]) {
   sessionStorage.clear();
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
+      provideHttpClient(withInterceptors(interceptores)),
       provideHttpClientTesting(),
     ],
   });
@@ -185,6 +185,39 @@ describe('errorInterceptor', () => {
     http.get(`${API}/panel/citas`).subscribe({ error: () => undefined });
     ctrl.expectOne(`${API}/panel/citas`).flush(NO_AUTENTICADO, R401);
     expect(avisos).toBe(2);
+  });
+
+  it('con el orden de interceptores invertido un 401 en /panel con token sigue emitiendo una sola vez', () => {
+    const { http, ctrl, tokens, expirada } = configurar([errorInterceptor, authInterceptor]);
+    let avisos = 0;
+    expirada.alExpirar(() => avisos++);
+    tokens.guardar('abc');
+    for (const ruta of ['citas', 'servicios', 'clientes']) {
+      http.get(`${API}/panel/${ruta}`).subscribe({ error: () => undefined });
+    }
+    const pedidas = ctrl.match(() => true);
+    expect(pedidas.length).toBe(3);
+    for (const r of pedidas) r.flush(NO_AUTENTICADO, R401);
+    expect(avisos).toBe(1);
+  });
+
+  it('un llamador que pone Authorization a mano hacia una URL sin token no emite', () => {
+    const { http, ctrl, tokens, expirada } = configurar();
+    let avisos = 0;
+    expirada.alExpirar(() => avisos++);
+    tokens.guardar('abc');
+    http.get(`${API}/publico/invitaciones/X`, { headers: { Authorization: 'Bearer ajeno' } }).subscribe({ error: () => undefined });
+    ctrl.expectOne(`${API}/publico/invitaciones/X`).flush(NO_AUTENTICADO, R401);
+    expect(avisos).toBe(0);
+  });
+
+  it('un 401 en /panel sin token guardado no emite', () => {
+    const { http, ctrl, expirada } = configurar();
+    let avisos = 0;
+    expirada.alExpirar(() => avisos++);
+    http.get(`${API}/panel/citas`, { headers: { Authorization: 'Bearer a-mano' } }).subscribe({ error: () => undefined });
+    ctrl.expectOne(`${API}/panel/citas`).flush(NO_AUTENTICADO, R401);
+    expect(avisos).toBe(0);
   });
 
   it('un 401 en POST /auth/login (credenciales inválidas) no emite y llega como ApiError', async () => {
