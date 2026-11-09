@@ -1,10 +1,10 @@
 import { createEnvironmentInjector, EnvironmentInjector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { AgendaRepo, DatosCliente } from './agenda-repo';
+import { AgendaRepo, DatosCliente } from '../core/agenda-repo';
 import { DemoAgendaRepo } from './demo-agenda-repo';
-import { CambioNoPermitidoError, HorarioNoDisponibleError, RELOJ, RolEnUsoError } from './errores';
-import { horariosLibres, sumarMinutos } from './horarios';
-import { Servicio } from './models';
+import { HorarioNoDisponibleError, RELOJ, RolEnUsoError } from '../core/errores';
+import { horariosLibres, sumarMinutos } from '../core/horarios';
+import { Servicio } from '../core/models';
 import { sembrar } from './seed';
 
 const AHORA = new Date(2026, 10, 9, 8, 0); // lunes 2026-11-09 08:00 local
@@ -178,46 +178,25 @@ describe('DemoAgendaRepo', () => {
   });
 
   it('eliminarRol sin usuarios lo elimina', async () => {
-    const marta = (await repo.usuarios()).find(u => u.usuario === 'marta')!;
-    const nuevo = await repo.guardarRol({ id: 'rol-nuevo', nombre: 'Auxiliar', descripcion: '', permisos: ['ver_citas'] }, marta.id);
+    const nuevo = await repo.guardarRol({ id: 'rol-nuevo', nombre: 'Auxiliar', descripcion: '', permisos: ['ver_citas'] });
     expect((await repo.roles()).length).toBe(3);
     await repo.eliminarRol(nuevo.id);
     expect((await repo.roles()).map(r => r.nombre)).toEqual(['Administrador', 'Recepción']);
   });
 
-  it('guardarRol quitando gestionar_roles al rol del actor lanza CambioNoPermitidoError', async () => {
-    const admin = (await repo.roles()).find(r => r.nombre === 'Administrador')!;
-    const marta = (await repo.usuarios()).find(u => u.usuario === 'marta')!;
-    const sinRoles = { ...admin, permisos: admin.permisos.filter(p => p !== 'gestionar_roles') };
-    await expect(repo.guardarRol(sinRoles, marta.id)).rejects.toBeInstanceOf(CambioNoPermitidoError);
-    await expect(repo.guardarRol(sinRoles, marta.id)).rejects.toThrow(
-      'No puedes quitarte el permiso de gestionar roles de tu propio rol.',
-    );
-    expect((await repo.roles()).find(r => r.id === admin.id)!.permisos).toContain('gestionar_roles');
-  });
-
   it('guardarRol normaliza dependencias y permite crear un rol nuevo', async () => {
-    const marta = (await repo.usuarios()).find(u => u.usuario === 'marta')!;
-    const guardado = await repo.guardarRol(
-      { id: 'rol-x', nombre: 'Auxiliar', descripcion: 'Apoyo', permisos: ['atender_citas'] },
-      marta.id,
-    );
+    const guardado = await repo.guardarRol({ id: 'rol-x', nombre: 'Auxiliar', descripcion: 'Apoyo', permisos: ['atender_citas'] });
     expect(guardado.permisos).toEqual(['atender_citas', 'ver_citas']);
     expect((await repo.roles()).find(r => r.id === 'rol-x')!.permisos).toEqual(['atender_citas', 'ver_citas']);
   });
 
-  it('iniciarSesion devuelve el usuario con credenciales correctas y null con incorrectas', async () => {
-    const ok = await repo.iniciarSesion('marta', 'demo123');
-    expect(ok!.usuario).toBe('marta');
-    expect((await repo.iniciarSesion('andres', 'demo123'))!.usuario).toBe('andres');
-    expect(await repo.iniciarSesion('marta', 'otra')).toBeNull();
-    expect(await repo.iniciarSesion('nadie', 'demo123')).toBeNull();
-  });
-
-  it('iniciarSesion ignora mayúsculas y espacios del usuario, pero la clave es exacta', async () => {
-    expect((await repo.iniciarSesion('  MARTA ', 'demo123'))!.usuario).toBe('marta');
-    expect(await repo.iniciarSesion('  MARTA ', 'DEMO123')).toBeNull();
-    expect(await repo.iniciarSesion('MARTA', 'otra')).toBeNull();
+  it('guardarUsuario no conserva la clave que trae el formulario', async () => {
+    const guardado = await repo.guardarUsuario({
+      id: 'usr-x', nombre: 'Lucía', apellido: 'Mora', correo: 'lucia@datemanager.demo', telefono: '',
+      usuario: 'lucia', clave: 'clave1', rolId: 'rol-recepcion',
+    });
+    expect(guardado).not.toHaveProperty('clave');
+    expect((await repo.usuarios()).find(u => u.id === 'usr-x')!).not.toHaveProperty('clave');
   });
 
   it('cambios sube con cada escritura exitosa y no con las lecturas', async () => {
@@ -225,10 +204,8 @@ describe('DemoAgendaRepo', () => {
     const consulta = await servicioPorNombre(repo, 'Consulta inicial');
     await repo.guardarServicio({ ...consulta, valor: 45000 });
     expect(repo.cambios()).toBe(1);
-    await repo.reiniciar();
-    expect(repo.cambios()).toBe(2);
     await repo.servicios();
-    expect(repo.cambios()).toBe(2);
+    expect(repo.cambios()).toBe(1);
   });
 
   it('persiste en localStorage y un repositorio nuevo lo recupera', async () => {
@@ -248,17 +225,6 @@ describe('DemoAgendaRepo', () => {
     expect((await crearRepo().roles()).length).toBe(2);
   });
 
-  it('reiniciar restaura los datos de ejemplo', async () => {
-    const consulta = await servicioPorNombre(repo, 'Consulta inicial');
-    const [inicio] = await repo.horariosLibres(consulta.id, FECHA);
-    await repo.reservar({ servicioId: consulta.id, fecha: FECHA, inicio, cliente: CLIENTE });
-    await repo.guardarServicio({ ...consulta, valor: 1 });
-    await repo.reiniciar();
-    const semilla = sembrar(AHORA);
-    expect(await repo.citas()).toEqual(semilla.citas);
-    expect(await repo.servicios()).toEqual(semilla.servicios);
-    expect(await repo.clientes()).toEqual(semilla.clientes);
-  });
 });
 
 describe('DemoAgendaRepo con dos pestañas', () => {
@@ -377,16 +343,6 @@ describe('DemoAgendaRepo con el paso de los días', () => {
     expect(await nuevo.citas()).toEqual(await repo.citas());
   });
 
-  it('reiniciar vuelve a marcar los datos como sin tocar, con el día de hoy', async () => {
-    const repo = crearRepo();
-    const consulta = await servicioPorNombre(repo, 'Consulta inicial');
-    await repo.guardarServicio({ ...consulta, valor: 1 });
-    await repo.reiniciar();
-    const guardado = JSON.parse(localStorage.getItem(CLAVE)!);
-    expect(guardado.editado).toBe(false);
-    expect(guardado.sembradoEn).toBe('2026-11-09');
-  });
-
   it('datos guardados por la versión anterior (sin marcas) cargan y se conservan', async () => {
     const antiguo = sembrar(new Date(2026, 9, 1, 9, 0));
     antiguo.servicios[0].valor = 12345;
@@ -410,10 +366,11 @@ describe('sembrar', () => {
     expect(datos.roles.map(r => r.nombre)).toEqual(['Administrador', 'Recepción']);
     expect(datos.roles[0].permisos.length).toBe(8);
     expect(datos.roles[1].permisos).toEqual(['ver_citas', 'gestionar_citas', 'atender_citas', 'gestionar_clientes']);
-    expect(datos.usuarios.map(u => [u.usuario, u.clave, u.rolId])).toEqual([
-      ['marta', 'demo123', datos.roles[0].id],
-      ['andres', 'demo123', datos.roles[1].id],
+    expect(datos.usuarios.map(u => [u.usuario, u.rolId])).toEqual([
+      ['marta', datos.roles[0].id],
+      ['andres', datos.roles[1].id],
     ]);
+    expect(JSON.stringify(datos.usuarios)).not.toContain('clave');
     expect(datos.servicios.map(s => [s.nombre, s.duracionMin, s.valor])).toEqual([
       ['Consulta inicial', 30, 40000],
       ['Sesión estándar', 60, 80000],

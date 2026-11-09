@@ -10,4 +10,4 @@ export interface Rol { id: string; nombre: string; descripcion: string; permisos
 export interface Usuario { id: string; nombre: string; apellido: string; correo: string; telefono: string; usuario: string; rolId: string }
 /** Usuario tal como se llena en la pantalla de alta o edición: solo aquí viaja la clave (vacía al editar = conservar). */
 export type UsuarioForm = Usuario & { clave?: string };
-export interface Datos { servicios: Servicio[]; clientes: Cliente[]; citas: Cita[]; roles: Rol[]; usuarios: UsuarioForm[] }
+export interface Datos { servicios: Servicio[]; clientes: Cliente[]; citas: Cita[]; roles: Rol[]; usuarios: Usuario[] }

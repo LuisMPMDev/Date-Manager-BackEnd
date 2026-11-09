@@ -14,13 +14,6 @@ export class RolEnUsoError extends Error {
   }
 }
 
-export class CambioNoPermitidoError extends Error {
-  constructor(mensaje: string) {
-    super(mensaje);
-    this.name = 'CambioNoPermitidoError';
-  }
-}
-
 /** Reloj inyectable para poder fijar la hora en las pruebas. */
 export const RELOJ = new InjectionToken<() => Date>('RELOJ', {
   providedIn: 'root',

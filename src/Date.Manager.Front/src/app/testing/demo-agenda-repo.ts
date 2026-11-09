@@ -1,10 +1,11 @@
 import { DestroyRef, inject, Injectable, signal } from '@angular/core';
-import { AgendaRepo, DatosCliente } from './agenda-repo';
-import { CambioNoPermitidoError, HorarioNoDisponibleError, RELOJ, RolEnUsoError } from './errores';
-import { aFechaISO } from './fechas';
-import { horariosLibres, sumarMinutos } from './horarios';
-import { Cita, Cliente, Datos, Rol, Servicio, Usuario, UsuarioForm } from './models';
-import { conDependencias, puedeEliminarRol, validarCambioRol } from './permisos';
+import { AgendaRepo, DatosCliente } from '../core/agenda-repo';
+import { HorarioNoDisponibleError, RELOJ, RolEnUsoError } from '../core/errores';
+import { aFechaISO } from '../core/fechas';
+import { nuevoId } from '../core/ids';
+import { horariosLibres, sumarMinutos } from '../core/horarios';
+import { Cita, Cliente, Datos, Rol, Servicio, Usuario, UsuarioForm } from '../core/models';
+import { conDependencias, puedeEliminarRol } from '../core/permisos';
 import { sembrar } from './seed';
 
 const CLAVE_ALMACEN = 'datemanager.demo.v1';
@@ -18,10 +19,6 @@ const LISTAS: (keyof Datos)[] = ['servicios', 'clientes', 'citas', 'roles', 'usu
 interface Almacenado extends Datos {
   sembradoEn?: string;
   editado?: boolean;
-}
-
-function nuevoId(prefijo: string): string {
-  return `${prefijo}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function copia<T>(valor: T): T {
@@ -117,15 +114,10 @@ export class DemoAgendaRepo extends AgendaRepo {
   }
 
   /** Aplica un cambio sobre lo más reciente del almacén, lo persiste y avisa a las pantallas. */
-  private escribir(cambio: (d: Datos) => Datos, esSembrado = false): void {
+  private escribir(cambio: (d: Datos) => Datos): void {
     this.sincronizar();
     const siguiente = cambio(this.datos());
-    if (esSembrado) {
-      this.sembradoEn = aFechaISO(this.reloj());
-      this.editado = false;
-    } else {
-      this.editado = true;
-    }
+    this.editado = true;
     this.datos.set(siguiente);
     this.guardar(siguiente);
     this.contador.update(n => n + 1);
@@ -180,9 +172,9 @@ export class DemoAgendaRepo extends AgendaRepo {
     const existente = this.datos().clientes.find(c => c.correo.trim().toLowerCase() === correo);
     const cliente: Cliente = existente
       ? { ...existente, nombre: p.cliente.nombre, apellido: p.cliente.apellido, telefono: p.cliente.telefono }
-      : { id: nuevoId('cli'), ...p.cliente };
+      : { id: nuevoId(), ...p.cliente };
     const cita: Cita = {
-      id: nuevoId('cita'),
+      id: nuevoId(),
       servicioId: servicio.id,
       clienteId: cliente.id,
       fecha: p.fecha,
@@ -233,16 +225,8 @@ export class DemoAgendaRepo extends AgendaRepo {
     return copia(this.datos().roles);
   }
 
-  async guardarRol(rol: Rol, actorId: string): Promise<Rol> {
-    this.sincronizar();
-    const { roles, usuarios } = this.datos();
-    const rolAntes = roles.find(r => r.id === rol.id);
+  async guardarRol(rol: Rol): Promise<Rol> {
     const guardado: Rol = { ...copia(rol), permisos: conDependencias(rol.permisos) };
-    if (rolAntes) {
-      const actor = usuarios.find(u => u.id === actorId);
-      const mensaje = actor ? validarCambioRol({ actor, rolAntes, rolDespues: guardado }) : null;
-      if (mensaje) throw new CambioNoPermitidoError(mensaje);
-    }
     this.escribir(d => ({ ...d, roles: guardarPorId(d.roles, guardado) }));
     return copia(guardado);
   }
@@ -258,22 +242,13 @@ export class DemoAgendaRepo extends AgendaRepo {
   }
 
   async guardarUsuario(u: UsuarioForm): Promise<Usuario> {
-    const guardado = copia(u);
+    const guardado: Usuario = copia(u);
+    delete (guardado as UsuarioForm).clave; // la clave nunca se conserva: el servidor la guarda cifrada
     this.escribir(d => ({ ...d, usuarios: guardarPorId(d.usuarios, guardado) }));
     return copia(guardado);
   }
 
   async eliminarUsuario(id: string): Promise<void> {
     this.escribir(d => ({ ...d, usuarios: d.usuarios.filter(u => u.id !== id) }));
-  }
-
-  async iniciarSesion(usuario: string, clave: string): Promise<Usuario | null> {
-    const buscado = usuario.trim().toLowerCase();
-    const encontrado = this.datos().usuarios.find(u => u.usuario.toLowerCase() === buscado && u.clave === clave);
-    return encontrado ? copia(encontrado) : null;
-  }
-
-  async reiniciar(): Promise<void> {
-    this.escribir(() => sembrar(this.reloj()), true);
   }
 }

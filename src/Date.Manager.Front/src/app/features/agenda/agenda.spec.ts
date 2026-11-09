@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AgendaRepo } from '../../core/agenda-repo';
-import { DemoAgendaRepo } from '../../core/demo-agenda-repo';
+import { DemoAgendaRepo } from '../../testing/demo-agenda-repo';
 import { RELOJ } from '../../core/errores';
 import { AgendaComponent } from './agenda';
 

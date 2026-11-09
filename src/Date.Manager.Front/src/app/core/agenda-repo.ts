@@ -16,11 +16,10 @@ export abstract class AgendaRepo {
   abstract clientes(): Promise<Cliente[]>;
   abstract guardarCliente(c: Cliente): Promise<Cliente>;
   abstract roles(): Promise<Rol[]>;
-  abstract guardarRol(rol: Rol, actorId: string): Promise<Rol>;
+  abstract guardarRol(rol: Rol): Promise<Rol>;
   abstract eliminarRol(id: string): Promise<void>;
   abstract usuarios(): Promise<Usuario[]>;
+  /** Envía `clave` solo si trae texto; vacía o ausente = conservar la actual. */
   abstract guardarUsuario(u: UsuarioForm): Promise<Usuario>;
   abstract eliminarUsuario(id: string): Promise<void>;
-  abstract iniciarSesion(usuario: string, clave: string): Promise<Usuario | null>;
-  abstract reiniciar(): Promise<void>;
 }

@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Servicio } from '../../core/models';
 import { alertas, citasPorDia } from '../../core/metricas';
-import { sembrar } from '../../core/seed';
+import { sembrar } from '../../testing/seed';
 import { SesionService } from '../../core/sesion';
 import { rolDe } from '../../core/sesion.pruebas';
 import { aFechaISO, sumarDias } from '../../shared/formato';

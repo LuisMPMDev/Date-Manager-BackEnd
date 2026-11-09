@@ -2,7 +2,6 @@ import {
   alerta, aviso, boton, botonDe, campo, celdas, configurar, crear, elegir, escribir, fijarPermisos, fila, filasDe,
   pulsar, repo, seccion, sesion,
 } from './usuarios.pruebas';
-import { UsuarioForm } from '../../core/models';
 
 const usuarios = (el: HTMLElement) => seccion(el, 'usuarios');
 
@@ -60,12 +59,15 @@ describe('Usuarios y roles: sección Usuarios', () => {
     it('«Guardar usuario» crea el usuario, cierra el formulario y avisa', async () => {
       const { fixture, el } = await crear();
       const s = usuarios(el);
+      const guardar = vi.spyOn(repo(), 'guardarUsuario');
       await pulsar(fixture, boton(s, 'Nuevo usuario'));
       await llenar(s, { ...NUEVO, nombre: '  Lucía ' });
       await pulsar(fixture, boton(s, 'Guardar usuario'));
 
       const guardado = (await repo().usuarios()).find(u => u.usuario === 'lucia')!;
-      expect(guardado).toMatchObject({ nombre: 'Lucía', apellido: 'Mora', correo: 'lucia@datemanager.demo', telefono: '300 555 0300', clave: 'clave1', rolId: 'rol-recepcion' });
+      expect(guardado).toMatchObject({ nombre: 'Lucía', apellido: 'Mora', correo: 'lucia@datemanager.demo', telefono: '300 555 0300', rolId: 'rol-recepcion' });
+      expect(guardar.mock.calls[0][0].clave).toBe('clave1'); // la clave viaja solo en el envío
+      expect(guardado.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
       expect(s.querySelector('form')).toBeNull();
       expect(filasDe(s)).toHaveLength(3);
       expect(aviso(s)).toBe('Usuario guardado.');
@@ -113,21 +115,21 @@ describe('Usuarios y roles: sección Usuarios', () => {
       expect(campo<HTMLSelectElement>(s, 'rol').value).toBe('rol-recepcion');
     });
 
-    it('al editar, la clave vacía conserva la actual y una clave nueva la reemplaza', async () => {
+    it('al editar, la clave vacía no se envía y una clave nueva sí', async () => {
       const { fixture, el } = await crear();
       const s = usuarios(el);
+      const guardar = vi.spyOn(repo(), 'guardarUsuario');
       await pulsar(fixture, botonDe(s, 'Editar usuario Andrés Pardo'));
       await llenar(s, { nombre: 'Andrés Felipe' });
       await pulsar(fixture, boton(s, 'Guardar usuario'));
-      let andres = (await repo().usuarios()).find(u => u.id === 'usr-andres')! as UsuarioForm;
-      expect(andres).toMatchObject({ nombre: 'Andrés Felipe', clave: 'demo123' });
+      expect(guardar.mock.calls[0][0]).not.toHaveProperty('clave');
+      expect(guardar.mock.calls[0][0]).toMatchObject({ id: 'usr-andres', nombre: 'Andrés Felipe' });
       expect(celdas(fila(s, 'usr-andres'))[0]).toBe('Andrés Felipe');
 
       await pulsar(fixture, botonDe(s, 'Editar usuario Andrés Felipe Pardo'));
       await llenar(s, { clave: 'otra-clave' });
       await pulsar(fixture, boton(s, 'Guardar usuario'));
-      andres = (await repo().usuarios()).find(u => u.id === 'usr-andres')! as UsuarioForm;
-      expect(andres.clave).toBe('otra-clave');
+      expect(guardar.mock.calls[1][0].clave).toBe('otra-clave');
     });
 
     it('al editar, conservar el propio usuario (aunque cambien las mayúsculas) no cuenta como repetido', async () => {
@@ -165,14 +167,13 @@ describe('Usuarios y roles: sección Usuarios', () => {
       expect(campo(s, 'nombre').value).toBe('Lucía');
     });
 
-    it('editar a la persona que tiene la sesión actualiza la sesión (nombre y permisos) sin guardar la clave', async () => {
+    it('editar a la persona que tiene la sesión actualiza la sesión (nombre y permisos)', async () => {
       const { fixture, el } = await crear();
       const s = usuarios(el);
       await pulsar(fixture, botonDe(s, 'Editar usuario Marta Rivas'));
       await llenar(s, { nombre: 'Marta Elena' });
       await pulsar(fixture, boton(s, 'Guardar usuario'));
       expect(sesion().usuario()?.nombre).toBe('Marta Elena');
-      expect(JSON.stringify({ ...sessionStorage })).not.toContain('demo123'); // la sesión solo guarda el token
     });
   });
 
@@ -239,7 +240,7 @@ describe('Usuarios y roles: sección Usuarios', () => {
     async function conUsuarioExtra() {
       await repo().guardarUsuario({
         id: 'usr-extra', nombre: 'Pablo', apellido: 'Núñez', correo: 'pablo@datemanager.demo',
-        telefono: '', usuario: 'pablo', clave: 'x', rolId: 'rol-recepcion',
+        telefono: '', usuario: 'pablo', rolId: 'rol-recepcion',
       });
     }
 

@@ -2,9 +2,9 @@ import {
   afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, input, signal,
 } from '@angular/core';
 import { AgendaRepo } from '../../core/agenda-repo';
+import { nuevoId } from '../../core/ids';
 import { Rol, Usuario, UsuarioForm } from '../../core/models';
 import { SesionService } from '../../core/sesion';
-import { nuevoId } from '../servicios/servicios-borrador';
 import { motivoNoCambiarRol, motivoNoEliminarUsuario, validarUsuario } from './usuarios-logica';
 
 type CampoTexto = 'nombre' | 'apellido' | 'usuario' | 'correo' | 'telefono' | 'clave';
@@ -21,8 +21,7 @@ export class UsuariosSeccionComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
-  /** La lista llega sin clave (la API no la devuelve); el tipo permite la clave que el repositorio en memoria aún conserva. */
-  readonly usuarios = input.required<UsuarioForm[]>();
+  readonly usuarios = input.required<Usuario[]>();
   readonly roles = input.required<Rol[]>();
 
   /** Copia del usuario que se está creando o editando: la tabla no cambia hasta guardar. */
@@ -49,7 +48,7 @@ export class UsuariosSeccionComponent {
   private abiertoDesde: HTMLElement | null = null;
 
   protected nuevo(evento: Event): void {
-    const vacio: UsuarioForm = { id: nuevoId('usr'), nombre: '', apellido: '', correo: '', telefono: '', usuario: '', clave: '', rolId: '' };
+    const vacio: UsuarioForm = { id: nuevoId(), nombre: '', apellido: '', correo: '', telefono: '', usuario: '', clave: '', rolId: '' };
     this.abrir(vacio, evento);
   }
 
@@ -76,14 +75,16 @@ export class UsuariosSeccionComponent {
     const b = this.borrador();
     if (!b || this.guardando()) return;
     const original = this.usuarios().find(u => u.id === b.id);
+    const { clave, ...datos } = b;
     const usuario: UsuarioForm = {
-      ...b,
+      ...datos,
       nombre: b.nombre.trim(), apellido: b.apellido.trim(), usuario: b.usuario.trim(),
       correo: b.correo.trim(), telefono: b.telefono.trim(),
-      clave: b.clave || original?.clave || '', // vacía al editar = conservar la actual
+      // vacía al editar = conservar la actual: no se envía
+      ...(clave ? { clave } : {}),
     };
     const mensaje =
-      validarUsuario({ ...usuario, clave: b.clave }, this.usuarios(), this.roles(), !original) ??
+      validarUsuario(usuario, this.usuarios(), this.roles(), !original) ??
       (original ? motivoNoCambiarRol({ antes: original, despues: usuario, usuarios: this.usuarios(), roles: this.roles() }) : null);
     if (mensaje) {
       this.error.set(mensaje);

@@ -1,3 +1,4 @@
+import { nuevoId } from '../../core/ids';
 import { DiaSemana, Servicio, VentanaDisponibilidad } from '../../core/models';
 import { DIAS } from '../../shared/formato';
 
@@ -16,12 +17,8 @@ export const OPCIONES_DIA: { valor: DiaSemana; nombre: string }[] = DIAS.map((no
   nombre,
 }));
 
-export function nuevoId(prefijo: string): string {
-  return `${prefijo}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
-}
-
 export function borradorVacio(): BorradorServicio {
-  return { id: nuevoId('srv'), nombre: '', duracion: '60', valor: '0', activo: true, ventanas: [] };
+  return { id: nuevoId(), nombre: '', duracion: '60', valor: '0', activo: true, ventanas: [] };
 }
 
 export function borradorDe(s: Servicio): BorradorServicio {
@@ -52,7 +49,7 @@ export function servicioDe(b: BorradorServicio): Servicio {
 }
 
 export function ventanaNueva(): VentanaDisponibilidad {
-  return { id: nuevoId('ven'), dia: 1, inicio: '09:00', fin: '12:00' };
+  return { id: nuevoId(), dia: 1, inicio: '09:00', fin: '12:00' };
 }
 
 /** «Lun 09:00–13:00, Lun 15:00–18:00, Mar …», ordenado por día y hora. */

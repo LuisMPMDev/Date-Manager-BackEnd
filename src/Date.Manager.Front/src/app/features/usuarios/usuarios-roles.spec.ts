@@ -213,7 +213,7 @@ describe('Usuarios y roles: sección Roles', () => {
 
   describe('eliminar', () => {
     async function conRolSinUsuarios() {
-      const r = await repo().guardarRol({ id: 'rol-libre', nombre: 'Libre', descripcion: '', permisos: ['ver_citas'] }, 'sistema');
+      const r = await repo().guardarRol({ id: 'rol-libre', nombre: 'Libre', descripcion: '', permisos: ['ver_citas'] });
       return r.id;
     }
 

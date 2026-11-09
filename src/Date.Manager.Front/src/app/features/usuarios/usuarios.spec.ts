@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Rol } from '../../core/models';
 import { Injectable } from '@angular/core';
-import { DemoAgendaRepo } from '../../core/demo-agenda-repo';
+import { DemoAgendaRepo } from '../../testing/demo-agenda-repo';
 import { alerta, celdas, configurar, crear, esperar, fijarPermisos, fila, repo, seccion, sesion } from './usuarios.pruebas';
 
 const TODOS = [
@@ -57,14 +57,14 @@ describe('UsuariosComponent', () => {
   it('si la lectura falla estando la sesión iniciada, muestra «No se pudo cargar usuarios y roles.»', async () => {
     const { fixture, el } = await crear();
     vi.spyOn(repo(), 'roles').mockRejectedValue(new Error('sin conexión'));
-    await repo().guardarRol({ id: 'rol-x', nombre: 'X', descripcion: '', permisos: [] }, 'sistema'); // sube `cambios`
+    await repo().guardarRol({ id: 'rol-x', nombre: 'X', descripcion: '', permisos: [] }); // sube `cambios`
     await esperar(fixture);
     expect(alerta(el)).toBe('No se pudo cargar usuarios y roles.');
   });
 
   it('se recalcula cuando cambian los datos desde otra parte', async () => {
     const { fixture, el } = await crear();
-    await repo().guardarRol({ id: 'rol-nuevo', nombre: 'Nuevo desde fuera', descripcion: '', permisos: [] }, 'sistema');
+    await repo().guardarRol({ id: 'rol-nuevo', nombre: 'Nuevo desde fuera', descripcion: '', permisos: [] });
     await esperar(fixture);
     expect(celdas(fila(seccion(el, 'roles'), 'rol-nuevo'))[0]).toBe('Nuevo desde fuera');
   });
@@ -72,7 +72,7 @@ describe('UsuariosComponent', () => {
   it('descarta una respuesta vieja que llega después de una más reciente', async () => {
     await configurar(RepoLento);
     const { fixture, el } = await crear();
-    await repo().guardarRol({ id: 'rol-n', nombre: 'N', descripcion: '', permisos: [] }, 'sistema');
+    await repo().guardarRol({ id: 'rol-n', nombre: 'N', descripcion: '', permisos: [] });
     await new Promise(r => setTimeout(r, 80));
     fixture.detectChanges();
     await esperar(fixture);

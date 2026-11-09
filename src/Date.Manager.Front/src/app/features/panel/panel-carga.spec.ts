@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Cita } from '../../core/models';
-import { DemoAgendaRepo } from '../../core/demo-agenda-repo';
+import { DemoAgendaRepo } from '../../testing/demo-agenda-repo';
 import { configurar, crear, esperar, kpi, repo } from './panel.pruebas';
 
 @Injectable()

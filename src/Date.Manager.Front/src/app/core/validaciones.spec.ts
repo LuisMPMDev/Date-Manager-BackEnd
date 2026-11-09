@@ -1,5 +1,5 @@
 import { Servicio } from './models';
-import { sembrar } from './seed';
+import { sembrar } from '../testing/seed';
 import { esCorreoValido, validarServicio } from './validaciones';
 
 const valido: Servicio = {

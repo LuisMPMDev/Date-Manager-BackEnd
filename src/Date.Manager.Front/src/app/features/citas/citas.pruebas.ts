@@ -1,10 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { AuthApi } from '../../core/auth-api';
-import { DemoAgendaRepo } from '../../core/demo-agenda-repo';
+import { DemoAgendaRepo } from '../../testing/demo-agenda-repo';
 import { RELOJ } from '../../core/errores';
 import { Cita, Permiso } from '../../core/models';
-import { sembrar } from '../../core/seed';
+import { sembrar } from '../../testing/seed';
 import { SesionService } from '../../core/sesion';
 import { AuthApiDemo, rolDe } from '../../core/sesion.pruebas';
 import { CitasComponent } from './citas';

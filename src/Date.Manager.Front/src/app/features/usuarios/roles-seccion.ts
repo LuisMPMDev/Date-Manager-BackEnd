@@ -2,11 +2,11 @@ import {
   afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, input, signal,
 } from '@angular/core';
 import { AgendaRepo } from '../../core/agenda-repo';
-import { CambioNoPermitidoError, RolEnUsoError } from '../../core/errores';
+import { RolEnUsoError } from '../../core/errores';
+import { nuevoId } from '../../core/ids';
 import { Permiso, Rol, Usuario } from '../../core/models';
-import { CATALOGO_PERMISOS, puedeEliminarRol } from '../../core/permisos';
+import { CATALOGO_PERMISOS, conDependencias, puedeEliminarRol, validarCambioRol } from '../../core/permisos';
 import { SesionService } from '../../core/sesion';
-import { nuevoId } from '../servicios/servicios-borrador';
 import { alternarPermiso, validarRolEditado, verCitasObligatorio } from './usuarios-logica';
 
 @Component({
@@ -49,7 +49,7 @@ export class RolesSeccionComponent {
   private abiertoDesde: HTMLElement | null = null;
 
   protected nuevo(evento: Event): void {
-    this.abrir({ id: nuevoId('rol'), nombre: '', descripcion: '', permisos: [] }, evento);
+    this.abrir({ id: nuevoId(), nombre: '', descripcion: '', permisos: [] }, evento);
   }
 
   protected editar(rol: Rol, evento: Event): void {
@@ -81,7 +81,10 @@ export class RolesSeccionComponent {
       descripcion: b.descripcion.trim(),
       permisos: CATALOGO_PERMISOS.map(p => p.id).filter(id => b.permisos.includes(id)),
     };
-    const mensaje = validarRolEditado(rol, this.roles());
+    const rolAntes = this.roles().find(r => r.id === rol.id);
+    const mensaje =
+      validarRolEditado(rol, this.roles()) ??
+      (rolAntes ? validarCambioRol({ actor, rolAntes, rolDespues: { ...rol, permisos: conDependencias(rol.permisos) } }) : null);
     if (mensaje) {
       this.error.set(mensaje);
       return;
@@ -89,9 +92,9 @@ export class RolesSeccionComponent {
     this.guardando.set(true);
     this.error.set('');
     try {
-      await this.repo.guardarRol(rol, actor.id);
-    } catch (e) {
-      this.error.set(e instanceof CambioNoPermitidoError ? e.message : 'No pudimos guardar el rol. Intenta de nuevo.');
+      await this.repo.guardarRol(rol);
+    } catch {
+      this.error.set('No pudimos guardar el rol. Intenta de nuevo.');
       this.guardando.set(false);
       return;
     }

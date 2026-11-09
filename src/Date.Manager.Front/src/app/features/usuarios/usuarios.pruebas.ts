@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { AuthApi } from '../../core/auth-api';
-import { DemoAgendaRepo } from '../../core/demo-agenda-repo';
+import { DemoAgendaRepo } from '../../testing/demo-agenda-repo';
 import { RELOJ } from '../../core/errores';
 import { Permiso, Usuario } from '../../core/models';
 import { SesionService } from '../../core/sesion';
@@ -38,7 +38,7 @@ export const sesion = () => TestBed.inject(SesionService);
 /** Cambia los permisos de un rol directo en el repositorio (sin las reglas de la pantalla). */
 export async function fijarPermisos(rolId: string, permisos: Permiso[]): Promise<void> {
   const rol = (await repo().roles()).find(r => r.id === rolId)!;
-  await repo().guardarRol({ ...rol, permisos }, 'sistema');
+  await repo().guardarRol({ ...rol, permisos });
 }
 
 /**
