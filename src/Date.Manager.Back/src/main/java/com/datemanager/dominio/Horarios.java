@@ -48,7 +48,8 @@ public final class Horarios {
                 continue;
             }
             int finVentana = aMinutos(v.fin());
-            for (int ini = aMinutos(v.inicio()); ini + servicio.duracionMin() <= finVentana; ini += PASO_MIN) {
+            // long: con una duración enorme, ini + duracion desbordaría int y el bucle no terminaría pronto.
+            for (int ini = aMinutos(v.inicio()); (long) ini + servicio.duracionMin() <= finVentana; ini += PASO_MIN) {
                 int fin = ini + servicio.duracionMin();
                 if (dias == 0 && ini < minutosAhora) {
                     continue;

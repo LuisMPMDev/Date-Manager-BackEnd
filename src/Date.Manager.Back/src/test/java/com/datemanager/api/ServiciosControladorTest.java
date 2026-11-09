@@ -285,6 +285,20 @@ class ServiciosControladorTest extends PruebaPanel {
     }
 
     @Test
+    void unaDuracionDeMasDeVeinticuatroHorasEsUn400YLaDeExactamente1440Vale() throws Exception {
+        guardar(SERVICIOS + "/" + UUID.randomUUID(), admin, cuerpo("Masaje", 1441, true, 100, List.of()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("VALIDACION"))
+                .andExpect(jsonPath("$.mensaje").value("La duración no puede superar 24 horas (1440 minutos)."));
+        assertThat(contar("servicio")).isZero();
+
+        guardar(SERVICIOS + "/" + UUID.randomUUID(), admin, cuerpo("Masaje", 1440, true, 100, List.of()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.duracionMin").value(1440));
+        assertThat(contar("servicio")).isEqualTo(1);
+    }
+
+    @Test
     void unaDuracionCeroONegativaEsUn400() throws Exception {
         for (int duracion : new int[] {0, -30}) {
             guardar(SERVICIOS + "/" + UUID.randomUUID(), admin, cuerpo("Masaje", duracion, true, 100, List.of()))

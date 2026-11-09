@@ -1,8 +1,10 @@
 package com.datemanager.dominio;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -47,6 +49,15 @@ class HorariosTest {
 
     private static Cita citaDeLas10() {
         return cita(UUID.randomUUID(), SERVICIO_ID, "10:00", "11:00", EstadoCita.Confirmada);
+    }
+
+    @Test
+    void unaDuracionEnormeNoDesbordaNiDevuelveHorarios() {
+        // Sin pasar por Validaciones: ini + duracion desbordaría int y el bucle recorrería millones de pasos.
+        Servicio enorme = servicio(Integer.MAX_VALUE, true, ventana(1, "09:00", "12:00"));
+
+        assertThat(assertTimeoutPreemptively(Duration.ofSeconds(2),
+                () -> Horarios.horariosLibres(enorme, LUNES, List.of(), AHORA, null))).isEmpty();
     }
 
     @Test

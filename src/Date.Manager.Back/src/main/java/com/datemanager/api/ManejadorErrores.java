@@ -8,6 +8,7 @@ import com.datemanager.dominio.ErrorNegocio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -63,6 +64,17 @@ public class ManejadorErrores extends ResponseEntityExceptionHandler {
     ResponseEntity<Object> violacionDeRestriccion(DataIntegrityViolationException e) {
         return respuesta(CodigoError.CONFLICTO,
                 "No se pudo guardar porque entra en conflicto con datos que ya existen.", null);
+    }
+
+    /**
+     * Fallo al tomar un bloqueo de la base (tiempo de espera, interbloqueo con esta petición de víctima): la
+     * operación se puede reintentar, así que es un conflicto y no un 500. Sin detalles de SQL en la respuesta.
+     */
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    ResponseEntity<Object> falloDeBloqueo(PessimisticLockingFailureException e) {
+        LOG.warn("Fallo de bloqueo en la base: {}", e.getClass().getSimpleName());
+        LOG.debug("Detalle del fallo de bloqueo", e);
+        return respuesta(CodigoError.CONFLICTO, "Hay otra operación en curso; inténtalo de nuevo.", null);
     }
 
     /**

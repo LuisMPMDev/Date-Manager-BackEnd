@@ -31,6 +31,8 @@ import org.springframework.test.web.servlet.MockMvc;
         PruebaIntegracion.ADMIN_CLAVE + "=",
         PruebaIntegracion.CORS + "=" + PruebaIntegracion.ORIGEN_CORS,
         "datemanager.jwt.secreto=secreto-falso-solo-para-pruebas-0123456789abcdef",
+        // La zona del negocio también se fija: las pruebas de fechas no dependen de DATEMANAGER_ZONA_HORARIA.
+        "datemanager.zona-horaria=America/Bogota",
         // Sin variables de administrador, AdministradorInicial avisaría (WARN) en cada arranque del contexto;
         // AdministradorInicialTest sube el nivel a WARN solo mientras verifica ese aviso.
         "logging.level.com.datemanager.infraestructura.AdministradorInicial=ERROR"

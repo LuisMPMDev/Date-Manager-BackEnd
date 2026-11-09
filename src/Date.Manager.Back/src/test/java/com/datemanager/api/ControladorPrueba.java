@@ -34,6 +34,13 @@ class ControladorPrueba {
         throw new org.springframework.dao.DataIntegrityViolationException("Violation of UNIQUE KEY (detalle interno)");
     }
 
+    /** Un fallo de bloqueo de la base (interbloqueo, tiempo de espera) no puede ser un 500. */
+    @GetMapping("/bloqueo")
+    void bloqueo() {
+        throw new org.springframework.dao.CannotAcquireLockException(
+                "Transaction was deadlocked on lock resources (detalle interno)");
+    }
+
     @GetMapping("/inesperado")
     void inesperado() {
         throw new IllegalStateException("detalle interno que no debe filtrarse");

@@ -52,6 +52,15 @@ class ValidacionesTest {
     }
 
     @Test
+    void aceptaHastaVeinticuatroHorasYRechazaMas() {
+        assertThat(Validaciones.errorServicio(servicio("Masaje", 1440, "50000", List.of()))).isEmpty();
+        for (int duracion : new int[] {1441, Integer.MAX_VALUE}) {
+            assertThat(Validaciones.errorServicio(servicio("Masaje", duracion, "50000", List.of())))
+                    .contains("La duración no puede superar 24 horas (1440 minutos).");
+        }
+    }
+
+    @Test
     void rechazaDuracionCeroONegativa() {
         for (int duracion : new int[] {0, -30}) {
             assertThat(Validaciones.errorServicio(servicio("Masaje", duracion, "50000", List.of())))

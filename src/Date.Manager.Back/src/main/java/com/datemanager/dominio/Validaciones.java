@@ -11,6 +11,9 @@ import java.util.regex.Pattern;
 /** Validaciones y normalizaciones puras (porta {@code core/validaciones.ts}). */
 public final class Validaciones {
 
+    /** Una cita no puede durar más de un día; además evita desbordes al sumar minutos en {@link Horarios}. */
+    public static final int MAX_DURACION_MIN = 1440;
+
     private static final List<String> DIAS =
             List.of("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo");
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
@@ -27,6 +30,9 @@ public final class Validaciones {
         }
         if (s.duracionMin() <= 0) {
             return Optional.of("La duración debe ser un número entero de minutos mayor que cero.");
+        }
+        if (s.duracionMin() > MAX_DURACION_MIN) {
+            return Optional.of("La duración no puede superar 24 horas (" + MAX_DURACION_MIN + " minutos).");
         }
         if (s.valor() == null || s.valor().signum() < 0) {
             return Optional.of("El valor no puede ser negativo.");

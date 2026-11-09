@@ -120,9 +120,10 @@ solo si la base está vacía**, se siembran los datos de ejemplo (ver «Usuarios
 
 - **Swagger UI:** <http://localhost:8080/swagger-ui.html> (redirige a `/swagger-ui/index.html`); el contrato
   OpenAPI en JSON está en <http://localhost:8080/v3/api-docs>. Solo existen en el perfil `dev`: en los demás
-  perfiles no hay ni Swagger ni siembra. Swagger UI documenta y permite probar el login y la zona pública; esta
-  API no declara un esquema de seguridad en OpenAPI, así que no hay botón *Authorize*: para las rutas del panel
-  usa `curl`, Postman o el cliente Angular con el token que devuelve el login.
+  perfiles no hay ni Swagger ni siembra. Para llamar a las rutas del panel
+  desde Swagger UI: haz login con `POST /api/auth/login` (por ejemplo `marta` / `demo123`), copia el valor de
+  `token` de la respuesta, pulsa *Authorize*, pega el token (sin el prefijo `Bearer`) y confirma; desde ahí las
+  peticiones del panel llevan la cabecera `Authorization`. También puedes usar `curl`, Postman o el cliente Angular.
 - Prueba rápida:
 
 ```bash
@@ -135,8 +136,8 @@ Para detenerla, `Ctrl+C` en el terminal.
 ## 4. Correr las pruebas
 
 > **Cuidado:** las pruebas usan la base `DateManagerTest` y **la borran por completo** al arrancar y antes de cada
-> prueba (Flyway `clean` está permitido solo en el perfil `test`). Nunca apuntes `DATEMANAGER_TEST_DB_URL` a una
-> base con datos que quieras conservar.
+> prueba (Flyway `clean` solo existe en las pruebas y se niega a ejecutarse si la base conectada no termina en
+> `Test`). Nunca apuntes `DATEMANAGER_TEST_DB_URL` a una base con datos que quieras conservar.
 
 Con las variables cargadas (necesitan `DATEMANAGER_TEST_DB_*`):
 

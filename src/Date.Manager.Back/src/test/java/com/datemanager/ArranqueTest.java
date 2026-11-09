@@ -88,6 +88,23 @@ class ArranqueTest extends PruebaIntegracion {
     }
 
     @Test
+    void unFalloDeBloqueoDeLaBaseResponde409SinFiltrarDetalles() throws Exception {
+        // Se registra un WARN; aquí se silencia para no ensuciar la salida de pruebas.
+        String registrador = "com.datemanager.api.ManejadorErrores";
+        loggingSystem.setLogLevel(registrador, LogLevel.OFF);
+        try {
+            mvc.perform(get(BASE + "/bloqueo"))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.codigo").value("CONFLICTO"))
+                    .andExpect(jsonPath("$.mensaje").value("Hay otra operación en curso; inténtalo de nuevo."))
+                    .andExpect(content().string(org.hamcrest.Matchers.not(
+                            org.hamcrest.Matchers.containsString("detalle interno"))));
+        } finally {
+            loggingSystem.setLogLevel(registrador, null);
+        }
+    }
+
+    @Test
     void unaExcepcionInesperadaResponde500SinFiltrarDetalles() throws Exception {
         // La excepción se registra en el log (ERROR); aquí se silencia para no ensuciar la salida de pruebas.
         String registrador = "com.datemanager.api.ManejadorErrores";

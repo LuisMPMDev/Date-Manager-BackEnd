@@ -3,6 +3,7 @@ package com.datemanager.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -118,6 +119,13 @@ class RecorridoCompletoTest extends PruebaPanel {
                 .andExpect(jsonPath("$.codigo").value("ENLACE_AGOTADO"));
         assertThat(contar("cita")).isEqualTo(1);
         assertThat(contar("cliente")).isEqualTo(1);
+
+        // Con la cita confirmada, el horario de las 09:00 ya no se ofrece (por el panel; el enlace está agotado).
+        mvc.perform(get("/api/panel/servicios/" + servicio + "/horarios").param("fecha", MANANA)
+                        .header(HttpHeaders.AUTHORIZATION, bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", not(hasItem("09:00"))))
+                .andExpect(jsonPath("$", hasItem("09:30")));
 
         // 9. El panel cancela la cita.
         mvc.perform(post("/api/panel/citas/" + citaId + "/cancelar").header(HttpHeaders.AUTHORIZATION, bearer))
