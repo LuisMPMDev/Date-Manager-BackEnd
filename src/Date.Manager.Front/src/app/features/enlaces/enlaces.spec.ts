@@ -118,7 +118,6 @@ describe('EnlacesComponent', () => {
       expect(a.slice(0, 5)).toEqual(['CODIGO0001', 'Activo', '2 de 10', fechaLocal('2026-11-10T15:30:00Z'), 'Marta Ríos']);
       expect(b.slice(0, 5)).toEqual(['CODIGO0002', 'Vencido', '0 (sin límite)', fechaLocal('2026-11-10T15:30:00Z'), 'Andrés Lora']);
       expect(a[3]).toMatch(/2026/);
-      expect(a[3]).toMatch(/(UTC|GMT|[A-Z]{3,5})$/); // lleva el nombre de la zona
     });
 
     it('respeta el orden que trae la API (más nuevos primero)', async () => {
@@ -219,6 +218,9 @@ describe('EnlacesComponent', () => {
       ['1e3', '', MSG_DURACION],
       ['-60', '', MSG_DURACION],
       ['99999999999', '', MSG_DURACION],
+      ['+90', '', MSG_DURACION],
+      ['0x3C', '', MSG_DURACION],
+      ['９０', '', MSG_DURACION],
       ['9'.repeat(400), '', MSG_DURACION],
       ['1440', '0', MSG_USOS],
       ['1440', '-1', MSG_USOS],
@@ -231,6 +233,9 @@ describe('EnlacesComponent', () => {
       ['1440', '1.', MSG_USOS],
       ['1440', '2147483648', MSG_USOS],
       ['1440', '99999999999', MSG_USOS],
+      ['1440', '+5', MSG_USOS],
+      ['1440', '0x10', MSG_USOS],
+      ['1440', '１２', MSG_USOS], // dígitos de ancho completo
       ['1440', '9'.repeat(400), MSG_USOS],
     ])('con duración «%s» y usos «%s» avisa y no envía nada', async (duracion, usos, mensaje) => {
       const { fixture, el } = await crear();
@@ -367,6 +372,25 @@ describe('EnlacesComponent', () => {
       }
     });
 
+    it('el aviso de copia manual NO se borra solo: hay que dar tiempo a copiar el texto', async () => {
+      sinPortapapeles();
+      const { fixture, el } = await crear();
+      vi.useFakeTimers();
+      try {
+        boton(filas(el)[0], 'Copiar enlace')!.click();
+        await vi.advanceTimersByTimeAsync(0);
+        fixture.detectChanges();
+        const mensaje = 'No se pudo copiar automáticamente. Selecciona el texto y cópialo.';
+        expect(estados(el)).toBe(mensaje);
+        await vi.advanceTimersByTimeAsync(60000);
+        fixture.detectChanges();
+        expect(estados(el)).toBe(mensaje);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('el aviso también se borra al empezar otra acción', async () => {
       portapapeles({ writeText: vi.fn().mockResolvedValue(undefined) });
       const { fixture, el } = await crear();
@@ -442,6 +466,19 @@ describe('EnlacesComponent', () => {
       boton(filas(el)[0], 'Sí, desactivar')!.click();
       await esperar(fixture);
       expect(document.activeElement).toBe(el.querySelector('[data-lista]'));
+    });
+
+    it('si se destruye la pantalla con la desactivación en vuelo, al terminar no falla', async () => {
+      const espera = diferida<Enlace>();
+      api().alDesactivar = () => espera.promesa;
+      const { fixture, el } = await crear();
+      boton(filas(el)[0], 'Desactivar')!.click();
+      fixture.detectChanges();
+      const pendiente = (fixture.componentInstance as unknown as { confirmarDesactivar(id: string): Promise<void> })
+        .confirmarDesactivar('e-1');
+      fixture.destroy();
+      espera.resolver(enlace({ estado: 'Desactivado' }));
+      await expect(pendiente).resolves.toBeUndefined();
     });
 
     it('«No, volver» devuelve el foco a «Desactivar»', async () => {

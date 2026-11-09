@@ -57,6 +57,7 @@ export class EnlacesComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private temporizadorAviso: ReturnType<typeof setTimeout> | undefined;
+  private destruido = false;
 
   protected readonly fechaHora = fechaHora;
   protected readonly urlCompleta = urlCompleta;
@@ -80,7 +81,10 @@ export class EnlacesComponent {
   private pedido = 0; // descarta respuestas de la lista que llegan tarde
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => clearTimeout(this.temporizadorAviso));
+    inject(DestroyRef).onDestroy(() => {
+      this.destruido = true;
+      clearTimeout(this.temporizadorAviso);
+    });
     void this.cargar();
   }
 
@@ -123,7 +127,8 @@ export class EnlacesComponent {
       await navigator.clipboard.writeText(url);
       this.anunciar('Enlace copiado.');
     } catch {
-      this.anunciar('No se pudo copiar automáticamente. Selecciona el texto y cópialo.');
+      // Sin temporizador: hay que dejar tiempo para seleccionar y copiar el texto a mano.
+      this.anunciar('No se pudo copiar automáticamente. Selecciona el texto y cópialo.', false);
       this.urlCreada.set(url);
       afterNextRender(
         () => this.host.nativeElement.querySelector<HTMLInputElement>('input[readonly]')?.select(),
@@ -165,15 +170,16 @@ export class EnlacesComponent {
     }
   }
 
-  /** Muestra un aviso breve y lo borra solo a los pocos segundos; '' lo quita ya. */
-  private anunciar(texto: string): void {
+  /** Muestra un aviso y, si `temporal`, lo borra solo a los pocos segundos; '' lo quita ya. */
+  private anunciar(texto: string, temporal = true): void {
     clearTimeout(this.temporizadorAviso);
     this.aviso.set(texto);
-    if (texto) this.temporizadorAviso = setTimeout(() => this.aviso.set(''), AVISO_MS);
+    if (texto && temporal) this.temporizadorAviso = setTimeout(() => this.aviso.set(''), AVISO_MS);
   }
 
   /** Mueve el foco a `selector` cuando la vista ya se actualizó. */
   private enfocar(selector: string): void {
+    if (this.destruido) return; // tras un await la pantalla puede haberse cerrado: afterNextRender lanzaría NG0911
     afterNextRender(
       () => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(),
       { injector: this.injector },
