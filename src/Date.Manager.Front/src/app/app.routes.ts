@@ -3,10 +3,11 @@ import { conPermiso, conSesion, sinSesion } from './core/guards';
 import { PanelShell } from './layout/panel-shell';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'reservar' },
+  { path: '', pathMatch: 'full', redirectTo: 'login' },
+  // Zona del cliente: pública, sin guardias; entra solo con el código de un enlace de invitación.
   {
-    path: 'reservar',
-    loadComponent: () => import('./features/reservar/reservar').then(m => m.ReservarComponent),
+    path: 'agendar/:codigo',
+    loadComponent: () => import('./features/agendar/agendar').then(m => m.AgendarComponent),
   },
   {
     path: 'login',
@@ -66,5 +67,5 @@ export const routes: Routes = [
       },
     ],
   },
-  { path: '**', redirectTo: 'reservar' },
+  { path: '**', redirectTo: 'login' },
 ];

@@ -1,0 +1,115 @@
+<main class="reserva">
+  <p class="marca">DateManager</p>
+
+  @if (cerrada(); as c) {
+    <h1 tabindex="-1">{{ c.titulo }}</h1>
+    <p class="subtitulo">{{ c.texto }}</p>
+  } @else if (vista() === 'cargando') {
+    <p class="aviso" role="status">Abriendo tu enlace…</p>
+  } @else if (vista() === 'falla') {
+    <h1 tabindex="-1">No pudimos abrir el enlace</h1>
+    <p class="alerta" role="alert">{{ errorApertura() }}</p>
+    <button type="button" class="btn primario ancho" (click)="abrir()">Reintentar</button>
+  } @else {
+    @switch (paso()) {
+      @case (1) {
+        <p class="paso">Paso 1 de 2</p>
+        <h1 tabindex="-1">Reserva tu cita</h1>
+        <p class="subtitulo">Elige el servicio y un horario libre.</p>
+
+        @if (error()) {
+          <p class="alerta" role="alert">{{ error() }}</p>
+        }
+
+        <div class="servicios">
+          @for (s of servicios(); track s.id) {
+            <button type="button" class="servicio" data-testid="servicio"
+                    [attr.aria-pressed]="s.id === servicioId()" (click)="elegirServicio(s)">
+              <span>{{ s.nombre }} · {{ s.duracionMin }} min</span>
+              <b>{{ moneda(s.valor) }}</b>
+            </button>
+          }
+        </div>
+
+        @if (servicio()) {
+          <div class="dia">
+            <button type="button" class="flecha" aria-label="Día anterior"
+                    [disabled]="fecha() <= hoy()" (click)="cambiarDia(-1)">‹</button>
+            <span data-testid="dia" aria-live="polite">{{ fechaLarga(fecha()) }}</span>
+            <button type="button" class="flecha" aria-label="Día siguiente"
+                    [disabled]="fecha() >= ultimoDia()" (click)="cambiarDia(1)">›</button>
+          </div>
+
+          @if (regla(); as r) {
+            @if (!libres().length) {
+              <p class="aviso">No quedan horarios libres este día.</p>
+            }
+            <app-regla-tiempo [desdeMin]="r.desdeMin" [hastaMin]="r.hastaMin" [bloques]="r.bloques"
+                              [huecos]="r.huecos" [ahoraMin]="ahoraMin()" (elegir)="elegirHora($event)" />
+          } @else {
+            <p class="aviso">Este servicio no atiende este día.</p>
+          }
+        } @else {
+          <p class="aviso">Elige un servicio para ver sus horarios.</p>
+        }
+
+        <button type="button" class="btn primario ancho" [disabled]="!elegido()" (click)="continuar()">Continuar</button>
+      }
+
+      @case (2) {
+        <p class="paso">Paso 2 de 2</p>
+        <h1 tabindex="-1">Tus datos</h1>
+        <p class="subtitulo">Sin crear cuenta.</p>
+
+        <div class="resumen">
+          {{ servicio()?.nombre }} · {{ servicio()?.duracionMin }} min
+          <small>{{ fechaLarga(fecha()) }}, {{ elegido() }} – {{ horaFin() }} · {{ moneda(servicio()?.valor ?? 0) }}</small>
+        </div>
+
+        @if (error()) {
+          <p class="alerta" role="alert">{{ error() }}</p>
+        }
+
+        <form (submit)="enviar($event)" novalidate>
+          <div class="campos">
+            @for (c of campos; track c.campo) {
+              <div class="campo" [class.completo]="$index > 1">
+                <label [for]="'campo-' + c.campo">{{ c.etiqueta }}</label>
+                <input [id]="'campo-' + c.campo" [name]="c.campo" [type]="c.tipo" [attr.autocomplete]="c.auto"
+                       [value]="datos()[c.campo]" (input)="escribir(c.campo, $event)"
+                       [attr.aria-invalid]="errores()[c.campo] ? 'true' : null"
+                       [attr.aria-describedby]="errores()[c.campo] ? 'error-' + c.campo : null" />
+                @if (errores()[c.campo]) {
+                  <p class="campo-error" [id]="'error-' + c.campo">{{ errores()[c.campo] }}</p>
+                }
+              </div>
+            }
+          </div>
+
+          <button type="submit" class="btn primario ancho" [disabled]="enviando()">Solicitar cita</button>
+          <button type="button" class="btn-enlace" (click)="cambiarHorario()">‹ Cambiar horario</button>
+        </form>
+      }
+
+      @case (3) {
+        @if (confirmada(); as cita) {
+          <p class="paso">Listo</p>
+          <h1 tabindex="-1">Cita confirmada</h1>
+          <p class="subtitulo">Guarda estos datos por si necesitas consultarla.</p>
+          <p class="estado">{{ cita.estado }}</p>
+          <div class="resumen">
+            {{ servicio()?.nombre }} · {{ servicio()?.duracionMin }} min
+            <small>{{ fechaLarga(cita.fecha) }}, {{ cita.inicio }} – {{ cita.fin }} · {{ moneda(servicio()?.valor ?? 0) }}</small>
+          </div>
+          <p class="subtitulo">
+            A nombre de {{ datos().nombre.trim() }} {{ datos().apellido.trim() }}<br />
+            {{ datos().telefono.trim() }} · {{ datos().correo.trim() }}
+          </p>
+          <button type="button" class="btn ancho" (click)="reservarOtra()">Reservar otra cita</button>
+        }
+      }
+    }
+  }
+
+  <a class="acceso" routerLink="/login">Acceso del negocio</a>
+</main>

@@ -1,6 +1,6 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, Injector, signal } from '@angular/core';
-import { ApiError } from '../../core/api-error';
 import { Enlace, EnlacesApi, PeticionEnlace } from '../../core/enlaces-api';
+import { mensajeDe } from '../../shared/errores';
 import { fechaHora } from './enlaces-formato';
 
 const DURACION_MIN = 60;
@@ -10,18 +10,11 @@ const DURACION_POR_DEFECTO = '1440';
 const USOS_MAX = 2147483647;
 const AVISO_MS = 5000;
 
-const SIN_PERMISO = 'No tienes permiso para ver esta información.';
 const NO_CARGO = 'No se pudo cargar la lista de enlaces.';
 const NO_CREO = 'No se pudo crear el enlace. Inténtalo de nuevo.';
 const NO_DESACTIVO = 'No se pudo desactivar el enlace. Inténtalo de nuevo.';
 const MENSAJE_DURACION = `La duración debe ser un número entero de minutos entre ${DURACION_MIN} y ${DURACION_MAX}.`;
 const MENSAJE_USOS = `El máximo de usos debe ser un número entero entre 1 y ${USOS_MAX}, o quedar vacío para no limitarlo.`;
-
-/** El texto del error de la API (ya en español); un 403 siempre dice lo mismo en esta pantalla. */
-function mensajeDe(e: unknown, respaldo: string): string {
-  if (e instanceof ApiError) return e.status === 403 ? SIN_PERMISO : e.message;
-  return respaldo;
-}
 
 /** Entero escrito en un campo de texto (se recortan espacios); null si no es un entero representable con exactitud. */
 function entero(texto: string): number | null {
