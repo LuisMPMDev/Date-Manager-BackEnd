@@ -28,6 +28,7 @@ import com.datemanager.dominio.VentanaDisponibilidad;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 /**
  * El último uso de un enlace con peticiones simultáneas reales: cada hilo llama al caso de uso con su propia
@@ -55,7 +56,8 @@ class UsoConcurrenteEnlaceTest extends PruebaIntegracion {
         jdbc.update("INSERT INTO rol_permiso (rol_id, permiso) VALUES (?, 'gestionar_enlaces')", rol);
         admin = UUID.randomUUID();
         jdbc.update("INSERT INTO usuario (id, nombre, apellido, correo, telefono, usuario, clave_hash, rol_id) "
-                + "VALUES (?, 'Ad', 'Min', 'a@x.co', '1', 'admin', 'x', ?)", admin, rol);
+                + "VALUES (?, 'Ad', 'Min', 'a@x.co', '1', 'admin', ?, ?)", admin,
+                new BCryptPasswordEncoder().encode("x"), rol);
     }
 
     private UUID crearServicio() {

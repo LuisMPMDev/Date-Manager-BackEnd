@@ -29,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 /**
  * Concurrencia real contra SQL Server: varios hilos llaman a la vez a los casos de uso (cada uno con su propia
@@ -168,7 +169,8 @@ class ReservaConcurrenteTest extends PruebaIntegracion {
         jdbc.update("INSERT INTO rol (id, nombre, descripcion) VALUES (?, 'R', '')", rol);
         UUID usuario = UUID.randomUUID();
         jdbc.update("INSERT INTO usuario (id, nombre, apellido, correo, telefono, usuario, clave_hash, rol_id) "
-                + "VALUES (?, 'U', 'U', 'u@x.co', '1', 'u', 'x', ?)", usuario, rol);
+                + "VALUES (?, 'U', 'U', 'u@x.co', '1', 'u', ?, ?)", usuario,
+                new BCryptPasswordEncoder().encode("x"), rol);
         UUID enlace = UUID.randomUUID();
         jdbc.update("INSERT INTO enlace_invitacion (id, codigo, creado_por, creado_en, vence_en, usos) "
                 + "VALUES (?, 'AAAAAAAAAAAAAAAAAAAAAA', ?, '2026-11-09T13:00:00', '2026-11-10T13:00:00', 0)",
@@ -182,9 +184,11 @@ class ReservaConcurrenteTest extends PruebaIntegracion {
     // ---------- Índice único filtrado (última línea de defensa) ----------
 
     private void insertarCita(UUID servicio, UUID cliente, String estado) {
-        jdbc.update("INSERT INTO cita (id, servicio_id, cliente_id, fecha, hora_inicio, hora_fin, estado, creada_en) "
-                + "VALUES (?, ?, ?, '2026-11-10', '09:00', '09:30', ?, SYSUTCDATETIME())",
-                UUID.randomUUID(), servicio, cliente, estado);
+        // Una cita Cancelada lleva su fecha de cancelación (ck_cita_cancelada_coherente).
+        jdbc.update("INSERT INTO cita (id, servicio_id, cliente_id, fecha, hora_inicio, hora_fin, estado, creada_en, "
+                + "cancelada_en) VALUES (?, ?, ?, '2026-11-10', '09:00', '09:30', ?, SYSUTCDATETIME(), "
+                + "CASE WHEN ? = 'Cancelada' THEN SYSUTCDATETIME() END)",
+                UUID.randomUUID(), servicio, cliente, estado, estado);
     }
 
     @Test
