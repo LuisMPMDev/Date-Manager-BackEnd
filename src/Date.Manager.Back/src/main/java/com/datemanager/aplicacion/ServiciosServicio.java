@@ -1,8 +1,6 @@
 package com.datemanager.aplicacion;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -75,9 +73,9 @@ public class ServiciosServicio {
     }
 
     /**
-     * Crea el servicio con ese id si no existe; si existe, lo reemplaza, ventanas incluidas: las que vienen con un
-     * id ya existente en este servicio se actualizan, las nuevas se crean y las que no vienen se borran.
-     * Se actualiza en el sitio (no se borra para reinsertar) para que reenviar los mismos ids no choque con la llave.
+     * Crea el servicio con ese id si no existe; si existe, lo reemplaza, ventanas incluidas: las ventanas guardadas
+     * se borran (con flush) y se insertan las recibidas, de modo que ningún paso intermedio deja dos ventanas
+     * cruzadas y reenviar los mismos ids no choca con la llave.
      * Toma el mismo bloqueo que las reservas, así dos guardados simultáneos (o un guardado y una reserva) no
      * mezclan ventanas.
      */
@@ -96,20 +94,15 @@ public class ServiciosServicio {
         }
         servicios.save(entidad);
 
-        Map<UUID, VentanaEntidad> existentes = new HashMap<>();
-        ventanas.findByServicioIdOrderByDiaAscInicioAscIdAsc(id).forEach(v -> existentes.put(v.getId(), v));
-        List<VentanaEntidad> aGuardar = new ArrayList<>();
-        for (VentanaDisponibilidad v : recibido.ventanas()) {
-            VentanaEntidad actual = existentes.remove(v.id());
-            if (actual == null) {
-                aGuardar.add(new VentanaEntidad(id, v.id(), v.dia(), v.inicio(), v.fin()));
-            } else {
-                actual.actualizar(v.dia(), v.inicio(), v.fin());
-                aGuardar.add(actual);
-            }
-        }
-        ventanas.deleteAll(existentes.values());
-        ventanas.saveAll(aGuardar);
+        // Se borran todas, se vacía (flush) y luego se insertan las recibidas: Hibernate escribe los inserts antes que
+        // los borrados, y el disparador tr_ventana_sin_cruce rechazaría cualquier paso intermedio con ventanas
+        // cruzadas. Como el conjunto final no tiene cruces (validar), ningún subconjunto lo tiene. El flush también
+        // evita que reenviar los mismos ids choque con la llave (servicio, id).
+        ventanas.deleteAll(ventanas.findByServicioIdOrderByDiaAscInicioAscIdAsc(id));
+        ventanas.flush();
+        ventanas.saveAll(recibido.ventanas().stream()
+                .map(v -> new VentanaEntidad(id, v.id(), v.dia(), v.inicio(), v.fin()))
+                .toList());
         servicios.flush();
         return entidad.aDominio(ventanasDe(id));
     }

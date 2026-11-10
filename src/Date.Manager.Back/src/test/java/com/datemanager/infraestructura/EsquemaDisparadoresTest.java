@@ -30,6 +30,8 @@ import org.springframework.dao.DataIntegrityViolationException;
  * Disparador {@code tr_cita_sin_solape} (V8): dos citas no canceladas del mismo servicio y día no pueden solaparse.
  * SQL directo (la aplicación valida antes, así que aquí se ejerce la última defensa), más una prueba de carrera con
  * dos conexiones propias que insertan a la vez citas solapadas: nunca pueden ganar las dos.
+ * También {@code tr_ventana_sin_cruce} (V9): dos ventanas de disponibilidad del mismo servicio y día no pueden
+ * cruzarse.
  */
 class EsquemaDisparadoresTest extends PruebaIntegracion {
 
@@ -253,6 +255,123 @@ class EsquemaDisparadoresTest extends PruebaIntegracion {
         // Llevar las dos al mismo bloque de 10:00 a 12:00 con inicios distintos no.
         afirmarSolape(() -> jdbc.update("UPDATE cita SET hora_inicio = CASE WHEN id = ? THEN '10:00' ELSE '10:30' "
                 + "END, hora_fin = '12:00' WHERE id IN (?, ?)", a, a, b));
+    }
+
+    // ---- Ventanas de disponibilidad (V9) ----
+
+    private static final int ERROR_CRUCE = 50020;
+
+    private UUID ventana(UUID servicio, int dia, String inicio, String fin) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO ventana_disponibilidad (servicio_id, id, dia, hora_inicio, hora_fin) "
+                + "VALUES (?, ?, ?, ?, ?)", servicio, id, dia, inicio, fin);
+        return id;
+    }
+
+    private int ventanas() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM ventana_disponibilidad", Integer.class);
+    }
+
+    /** La sentencia la rechaza el disparador (error 50020, mensaje sin valores de la base) y nada cambia. */
+    private void afirmarCruce(ThrowingCallable sql) {
+        int antes = ventanas();
+        Throwable e = catchThrowable(sql);
+        assertThat(e).as("se esperaba el rechazo del disparador").isNotNull();
+        assertThat(codigoSql(e)).as("código de error de SQL Server").isEqualTo(ERROR_CRUCE);
+        assertThat(e).hasMessageContaining("Las ventanas de disponibilidad de un servicio se cruzan.");
+        assertThat(ventanas()).isEqualTo(antes);
+    }
+
+    @Test
+    void unaVentanaQueSeCruzaConOtraDelMismoServicioYDiaSeRechaza() {
+        UUID servicio = crearServicio();
+        ventana(servicio, 1, "09:00", "10:00");
+
+        afirmarCruce(() -> ventana(servicio, 1, "09:30", "10:30"));
+        afirmarCruce(() -> ventana(servicio, 1, "08:30", "09:30"));
+        afirmarCruce(() -> ventana(servicio, 1, "08:00", "12:00"));
+        afirmarCruce(() -> ventana(servicio, 1, "09:15", "09:45"));
+        afirmarCruce(() -> ventana(servicio, 1, "09:00", "10:00"));
+    }
+
+    @Test
+    void ventanasPegadasExtremoConExtremoSeAceptan() {
+        UUID servicio = crearServicio();
+        ventana(servicio, 1, "09:00", "10:00");
+
+        assertThatCode(() -> {
+            ventana(servicio, 1, "08:00", "09:00");
+            ventana(servicio, 1, "10:00", "11:00");
+        }).doesNotThrowAnyException();
+        assertThat(ventanas()).isEqualTo(3);
+    }
+
+    @Test
+    void elMismoHorarioEnOtroDiaUOtroServicioSeAcepta() {
+        UUID servicio = crearServicio();
+        UUID otro = crearServicio();
+        ventana(servicio, 1, "09:00", "10:00");
+
+        assertThatCode(() -> {
+            ventana(servicio, 2, "09:00", "10:00");
+            ventana(otro, 1, "09:30", "10:30");
+        }).doesNotThrowAnyException();
+        assertThat(ventanas()).isEqualTo(3);
+    }
+
+    @Test
+    void unInsertDeVariasVentanasQueSeCruzanEntreSiSeRechazaYPegadasSeAcepta() {
+        UUID servicio = crearServicio();
+        String insertar = "INSERT INTO ventana_disponibilidad (servicio_id, id, dia, hora_inicio, hora_fin) "
+                + "VALUES (?, ?, 3, ?, ?), (?, ?, 3, ?, ?)";
+
+        afirmarCruce(() -> jdbc.update(insertar, servicio, UUID.randomUUID(), "09:00", "10:00", servicio,
+                UUID.randomUUID(), "09:30", "10:30"));
+        assertThatCode(() -> jdbc.update(insertar, servicio, UUID.randomUUID(), "09:00", "10:00", servicio,
+                UUID.randomUUID(), "10:00", "11:00")).doesNotThrowAnyException();
+        assertThat(ventanas()).isEqualTo(2);
+    }
+
+    @Test
+    void moverUnaVentanaEncimaDeOtraOCambiarleElDiaSeRechaza() {
+        UUID servicio = crearServicio();
+        ventana(servicio, 1, "09:00", "10:00");
+        UUID otra = ventana(servicio, 1, "12:00", "13:00");
+        UUID otroDia = ventana(servicio, 2, "09:30", "10:30");
+
+        afirmarCruce(() -> jdbc.update("UPDATE ventana_disponibilidad SET hora_inicio = '09:30', hora_fin = '10:30' "
+                + "WHERE servicio_id = ? AND id = ?", servicio, otra));
+        afirmarCruce(() -> jdbc.update("UPDATE ventana_disponibilidad SET dia = 1 WHERE servicio_id = ? AND id = ?",
+                servicio, otroDia));
+    }
+
+    @Test
+    void unaVentanaNoSeComparaConsigoMisma() {
+        UUID servicio = crearServicio();
+        UUID id = ventana(servicio, 1, "09:00", "10:00");
+        ventana(servicio, 1, "12:00", "13:00");
+
+        // Moverla a un horario que se cruza con el suyo anterior, o dejarla igual, no es un cruce.
+        assertThatCode(() -> {
+            jdbc.update("UPDATE ventana_disponibilidad SET hora_inicio = '09:30', hora_fin = '10:30' "
+                    + "WHERE servicio_id = ? AND id = ?", servicio, id);
+            jdbc.update("UPDATE ventana_disponibilidad SET dia = 1 WHERE servicio_id = ? AND id = ?", servicio, id);
+        }).doesNotThrowAnyException();
+    }
+
+    @Test
+    void unUpdateDeVariasVentanasSeVerificaConElResultadoFinal() {
+        UUID servicio = crearServicio();
+        UUID a = ventana(servicio, 1, "09:00", "10:00");
+        UUID b = ventana(servicio, 1, "10:00", "11:00");
+
+        // Desplazar las dos una hora en una sola sentencia deja un estado final válido.
+        assertThatCode(() -> jdbc.update("UPDATE ventana_disponibilidad SET hora_inicio = DATEADD(HOUR, 1, "
+                + "hora_inicio), hora_fin = DATEADD(HOUR, 1, hora_fin) WHERE servicio_id = ?", servicio))
+                .doesNotThrowAnyException();
+        // Llevar las dos al mismo bloque no.
+        afirmarCruce(() -> jdbc.update("UPDATE ventana_disponibilidad SET hora_inicio = '10:00', hora_fin = '12:00' "
+                + "WHERE servicio_id = ? AND id IN (?, ?)", servicio, a, b));
     }
 
     // ---- Carreras ----

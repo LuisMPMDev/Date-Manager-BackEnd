@@ -207,6 +207,83 @@ class ServiciosControladorTest extends PruebaPanel {
         assertThat(ventanasEnBase(id)).containsExactly("1 09:00-12:00", "1 14:00-16:00");
     }
 
+    // El disparador tr_ventana_sin_cruce (V9) rechaza cualquier paso que deje dos ventanas cruzadas, aunque sea un
+    // instante: los guardados cuyo conjunto final es válido no deben pasar por un cruce intermedio.
+
+    @Test
+    void reemplazarUnaVentanaPorOtraDeIdNuevoQueSeCruzaConLaAnteriorFunciona() throws Exception {
+        UUID id = UUID.randomUUID();
+        guardar(SERVICIOS + "/" + id, admin, masaje(ventana(UUID.randomUUID(), 1, "09:00", "10:00")))
+                .andExpect(status().isOk());
+        UUID nueva = UUID.randomUUID();
+
+        guardar(SERVICIOS + "/" + id, admin, masaje(ventana(nueva, 1, "09:30", "10:30")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ventanas", hasSize(1)))
+                .andExpect(jsonPath("$.ventanas[0].id").value(nueva.toString()))
+                .andExpect(jsonPath("$.ventanas[0].inicio").value("09:30"))
+                .andExpect(jsonPath("$.ventanas[0].fin").value("10:30"));
+
+        assertThat(ventanasEnBase(id)).containsExactly("1 09:30-10:30");
+    }
+
+    @Test
+    void desplazarDosVentanasContiguasConSusMismosIdsFunciona() throws Exception {
+        UUID id = UUID.randomUUID();
+        UUID v1 = UUID.randomUUID();
+        UUID v2 = UUID.randomUUID();
+        guardar(SERVICIOS + "/" + id, admin,
+                masaje(ventana(v1, 1, "09:00", "10:00"), ventana(v2, 1, "10:00", "11:00")))
+                .andExpect(status().isOk());
+
+        guardar(SERVICIOS + "/" + id, admin,
+                masaje(ventana(v1, 1, "10:00", "11:00"), ventana(v2, 1, "11:00", "12:00")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ventanas", hasSize(2)))
+                .andExpect(jsonPath("$.ventanas[0].id").value(v1.toString()))
+                .andExpect(jsonPath("$.ventanas[0].inicio").value("10:00"))
+                .andExpect(jsonPath("$.ventanas[1].id").value(v2.toString()))
+                .andExpect(jsonPath("$.ventanas[1].fin").value("12:00"));
+
+        assertThat(ventanasEnBase(id)).containsExactly("1 10:00-11:00", "1 11:00-12:00");
+    }
+
+    @Test
+    void intercambiarLosHorariosDeDosVentanasConSusMismosIdsFunciona() throws Exception {
+        UUID id = UUID.randomUUID();
+        UUID v1 = UUID.randomUUID();
+        UUID v2 = UUID.randomUUID();
+        guardar(SERVICIOS + "/" + id, admin,
+                masaje(ventana(v1, 1, "09:00", "10:00"), ventana(v2, 1, "10:00", "12:00")))
+                .andExpect(status().isOk());
+
+        guardar(SERVICIOS + "/" + id, admin,
+                masaje(ventana(v1, 1, "09:00", "11:00"), ventana(v2, 1, "11:00", "12:00")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ventanas[0].id").value(v1.toString()))
+                .andExpect(jsonPath("$.ventanas[1].id").value(v2.toString()));
+
+        assertThat(ventanasEnBase(id)).containsExactly("1 09:00-11:00", "1 11:00-12:00");
+    }
+
+    @Test
+    void unConjuntoFinalConCruceRealSigueSiendoUn400ConElMensajeDeLaAplicacionYNoCambiaNada() throws Exception {
+        UUID id = UUID.randomUUID();
+        UUID v1 = UUID.randomUUID();
+        guardar(SERVICIOS + "/" + id, admin, masaje(ventana(v1, 1, "09:00", "10:00")))
+                .andExpect(status().isOk());
+
+        guardar(SERVICIOS + "/" + id, admin, masaje(ventana(v1, 1, "09:00", "10:00"),
+                ventana(UUID.randomUUID(), 1, "09:30", "10:30")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("VALIDACION"))
+                .andExpect(jsonPath("$.mensaje").value(
+                        "Lunes: las ventanas 09:00–10:00 y 09:30–10:30 se cruzan. "
+                                + "Ajusta las horas para que una termine donde empieza la otra o antes."));
+
+        assertThat(ventanasEnBase(id)).containsExactly("1 09:00-10:00");
+    }
+
     @Test
     void cambiarElDiaDeUnaVentanaConElMismoIdLaMueve() throws Exception {
         UUID id = UUID.randomUUID();
