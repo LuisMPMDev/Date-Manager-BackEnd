@@ -1,10 +1,12 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { AhoraService } from '../../core/ahora';
 import { RELOJ } from '../../core/errores';
 import { aHHmm } from '../../core/horarios';
 import { Cita, Cliente, Servicio } from '../../core/models';
 import { SesionService } from '../../core/sesion';
+import { esConflicto, esSinPermiso, mensajeAccion } from '../../shared/errores';
 import { aFechaISO, fechaLarga } from '../../shared/formato';
 import { ESTADOS, FilaCita, filtrarCitas, FiltrosCitas, nombreCompleto, SIN_FILTROS } from './citas-filtros';
 import { MoverCitaComponent } from './mover-cita';
@@ -22,6 +24,7 @@ export class CitasComponent {
   private readonly repo = inject(AgendaRepo);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly router = inject(Router);
   private readonly hoy = aFechaISO(inject(RELOJ)());
   private readonly ahora = inject(AhoraService).ahora;
   protected readonly sesion = inject(SesionService);
@@ -39,6 +42,9 @@ export class CitasComponent {
   protected readonly moviendoId = signal<string | null>(null);
   protected readonly aviso = signal('');
   protected readonly error = signal('');
+  /** Hay una escritura en curso (cancelar o atender): bloquea los botones de acción. */
+  protected readonly ocupada = signal(false);
+  private pedido = 0; // descarta respuestas que llegan tarde
 
   protected readonly mostrarAcciones = computed(
     () => this.sesion.puede('gestionar_citas') || this.sesion.puede('atender_citas'),
@@ -123,6 +129,11 @@ export class CitasComponent {
     if (id) this.devolverFoco(id, 'mover');
   }
 
+  /** El diálogo de mover vio un conflicto (409): esta lista también pudo quedar vieja. */
+  protected recargar(): void {
+    void this.cargar();
+  }
+
   protected movida(cita: Cita): void {
     this.aviso.set(`Cita movida al ${fechaLarga(cita.fecha)}, ${cita.inicio}.`);
     this.cerrarMover();
@@ -131,12 +142,17 @@ export class CitasComponent {
   // --- Ayudas --------------------------------------------------------------
 
   private async ejecutar(id: string, accion: () => Promise<Cita>, mensaje: string): Promise<void> {
+    if (this.ocupada()) return;
+    this.ocupada.set(true); // antes del primer await: un segundo clic ya no pasa
     this.error.set('');
     try {
       await accion();
       this.aviso.set(mensaje);
-    } catch {
-      this.error.set('No pudimos completar la acción. Intenta de nuevo.');
+    } catch (e) {
+      this.error.set(mensajeAccion(e, 'No pudimos completar la acción. Intenta de nuevo.'));
+      if (esConflicto(e)) void this.cargar(); // la cita cambió desde otro lado: se muestra como está ahora
+    } finally {
+      this.ocupada.set(false);
     }
     this.confirmando.set(null);
     this.enfocar(() => this.filaEl(id) ?? this.titulo());
@@ -162,13 +178,21 @@ export class CitasComponent {
   }
 
   private async cargar(): Promise<void> {
-    const [citas, servicios, clientes] = await Promise.all([
-      this.repo.citas(),
-      this.repo.servicios(),
-      this.repo.clientes(),
-    ]);
-    this.citas.set(citas);
-    this.servicios.set(servicios);
-    this.clientes.set(clientes);
+    const numero = ++this.pedido;
+    try {
+      const [citas, servicios, clientes] = await Promise.all([
+        this.repo.citas(),
+        this.repo.servicios(),
+        this.repo.clientes(),
+      ]);
+      if (numero !== this.pedido) return;
+      this.citas.set(citas);
+      this.servicios.set(servicios);
+      this.clientes.set(clientes);
+    } catch (e) {
+      if (numero !== this.pedido) return;
+      if (esSinPermiso(e)) void this.router.navigateByUrl('/sin-acceso');
+      else this.error.set('No se pudieron cargar las citas.');
+    }
   }
 }

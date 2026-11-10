@@ -5,6 +5,9 @@
   </div>
 
   <p class="aviso-ok" role="status">{{ aviso() }}</p>
+  @if (avisoRoles()) {
+    <p class="aviso-seccion" role="status" data-aviso="roles">Roles de los usuarios: {{ avisoRoles() }}</p>
+  }
 
   @if (borrador(); as b) {
     <form class="formulario" (submit)="guardar($event)" novalidate>
@@ -13,40 +16,68 @@
       <div class="campos">
         <div class="campo">
           <label for="usuario-nombre">Nombre</label>
-          <input id="usuario-nombre" name="nombre" type="text" autocomplete="off" [value]="b.nombre" (input)="escribir('nombre', $event)" />
+          <input id="usuario-nombre" name="nombre" type="text" autocomplete="off" [value]="b.nombre" (input)="escribir('nombre', $event)"
+                 [attr.aria-invalid]="errores()['nombre'] ? 'true' : null" [attr.aria-describedby]="errores()['nombre'] ? 'error-usuario-nombre' : null" />
+          @if (errores()['nombre']) {
+            <p class="campo-error" id="error-usuario-nombre">{{ errores()['nombre'] }}</p>
+          }
         </div>
         <div class="campo">
           <label for="usuario-apellido">Apellido</label>
-          <input id="usuario-apellido" name="apellido" type="text" autocomplete="off" [value]="b.apellido" (input)="escribir('apellido', $event)" />
+          <input id="usuario-apellido" name="apellido" type="text" autocomplete="off" [value]="b.apellido" (input)="escribir('apellido', $event)"
+                 [attr.aria-invalid]="errores()['apellido'] ? 'true' : null" [attr.aria-describedby]="errores()['apellido'] ? 'error-usuario-apellido' : null" />
+          @if (errores()['apellido']) {
+            <p class="campo-error" id="error-usuario-apellido">{{ errores()['apellido'] }}</p>
+          }
         </div>
         <div class="campo">
           <label for="usuario-usuario">Usuario</label>
-          <input id="usuario-usuario" name="usuario" type="text" autocomplete="off" autocapitalize="none" [value]="b.usuario" (input)="escribir('usuario', $event)" />
+          <input id="usuario-usuario" name="usuario" type="text" autocomplete="off" autocapitalize="none" [value]="b.usuario" (input)="escribir('usuario', $event)"
+                 [attr.aria-invalid]="errores()['usuario'] ? 'true' : null" [attr.aria-describedby]="errores()['usuario'] ? 'error-usuario-usuario' : null" />
+          @if (errores()['usuario']) {
+            <p class="campo-error" id="error-usuario-usuario">{{ errores()['usuario'] }}</p>
+          }
         </div>
         <div class="campo">
           <label for="usuario-correo">Correo</label>
-          <input id="usuario-correo" name="correo" type="email" autocomplete="off" [value]="b.correo" (input)="escribir('correo', $event)" />
+          <input id="usuario-correo" name="correo" type="email" autocomplete="off" [value]="b.correo" (input)="escribir('correo', $event)"
+                 [attr.aria-invalid]="errores()['correo'] ? 'true' : null" [attr.aria-describedby]="errores()['correo'] ? 'error-usuario-correo' : null" />
+          @if (errores()['correo']) {
+            <p class="campo-error" id="error-usuario-correo">{{ errores()['correo'] }}</p>
+          }
         </div>
         <div class="campo">
           <label for="usuario-telefono">Teléfono (opcional)</label>
-          <input id="usuario-telefono" name="telefono" type="tel" autocomplete="off" [value]="b.telefono" (input)="escribir('telefono', $event)" />
+          <input id="usuario-telefono" name="telefono" type="tel" autocomplete="off" [value]="b.telefono" (input)="escribir('telefono', $event)"
+                 [attr.aria-invalid]="errores()['telefono'] ? 'true' : null" [attr.aria-describedby]="errores()['telefono'] ? 'error-usuario-telefono' : null" />
+          @if (errores()['telefono']) {
+            <p class="campo-error" id="error-usuario-telefono">{{ errores()['telefono'] }}</p>
+          }
         </div>
         <div class="campo">
           <label for="usuario-clave">Clave</label>
           <input id="usuario-clave" name="clave" type="password" autocomplete="new-password" [value]="b.clave ?? ''"
-                 [attr.aria-describedby]="esNuevo() ? null : 'usuario-clave-ayuda'" (input)="escribir('clave', $event)" />
+                 [attr.aria-invalid]="errores()['clave'] ? 'true' : null"
+                 [attr.aria-describedby]="errores()['clave'] ? 'error-usuario-clave' : (esNuevo() ? null : 'usuario-clave-ayuda')" (input)="escribir('clave', $event)" />
+          @if (errores()['clave']) {
+            <p class="campo-error" id="error-usuario-clave">{{ errores()['clave'] }}</p>
+          }
           @if (!esNuevo()) {
             <p class="ayuda" id="usuario-clave-ayuda">Déjala vacía para conservar la clave actual.</p>
           }
         </div>
         <div class="campo">
           <label for="usuario-rol">Rol</label>
-          <select id="usuario-rol" name="rol" (change)="elegirRol($event)">
+          <select id="usuario-rol" name="rol" (change)="elegirRol($event)"
+                  [attr.aria-invalid]="errores()['rolId'] ? 'true' : null" [attr.aria-describedby]="errores()['rolId'] ? 'error-usuario-rolId' : null">
             <option value="" [selected]="!b.rolId">Elige un rol</option>
             @for (r of roles(); track r.id) {
               <option [value]="r.id" [selected]="r.id === b.rolId">{{ r.nombre }}</option>
             }
           </select>
+          @if (errores()['rolId']) {
+            <p class="campo-error" id="error-usuario-rolId">{{ errores()['rolId'] }}</p>
+          }
         </div>
       </div>
 
@@ -56,7 +87,7 @@
 
       <div class="acciones">
         <button type="submit" class="btn primario" [disabled]="guardando()">Guardar usuario</button>
-        <button type="button" class="btn" (click)="cancelar()">Cancelar</button>
+        <button type="button" class="btn" [disabled]="guardando()" (click)="cancelar()">Cancelar</button>
       </div>
     </form>
   } @else if (error()) {
@@ -89,7 +120,7 @@
               @if (confirmando() === f.usuario.id) {
                 <div class="confirmar" role="group" [attr.aria-label]="'Confirmar eliminación de ' + f.nombre">
                   <span class="pregunta">¿Eliminar a {{ f.nombre }}?</span>
-                  <button type="button" class="btn peligro" (click)="confirmarEliminar(f.usuario)">Sí, eliminar</button>
+                  <button type="button" class="btn peligro" [disabled]="guardando()" (click)="confirmarEliminar(f.usuario)">Sí, eliminar</button>
                   <button type="button" class="btn" data-volver (click)="volver(f.usuario.id)">No, volver</button>
                 </div>
               } @else {

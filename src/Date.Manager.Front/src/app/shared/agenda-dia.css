@@ -42,3 +42,11 @@ h3 {
   font-size: 12px;
   color: var(--apoyo);
 }
+
+.alerta {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-left: 4px solid var(--rojo);
+  background: var(--fondo);
+  font-weight: 600;
+}

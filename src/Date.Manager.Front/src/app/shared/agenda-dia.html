@@ -1,3 +1,10 @@
+@if (error()) {
+  <p class="alerta" role="alert">{{ error() }}</p>
+}
+@if (avisoClientes()) {
+  <p class="aviso-seccion" role="status" data-aviso="clientes">Nombres de los clientes: {{ avisoClientes() }}</p>
+}
+
 @if (agenda(); as a) {
   <div class="columnas" role="group" aria-label="Agenda del día">
     @for (c of a.columnas; track c.servicioId) {

@@ -53,6 +53,9 @@ export function validarCambioRol(p: { actor: Usuario; rolAntes: Rol; rolDespues:
   return null;
 }
 
+/** Por qué no se puede eliminar un rol con usuarios asignados (la API responde lo mismo con un 409). */
+export const MOTIVO_ROL_EN_USO = 'No se puede eliminar un rol que tiene usuarios asignados.';
+
 export function puedeEliminarRol(rolId: string, usuarios: Usuario[]): boolean {
   return !usuarios.some(u => u.rolId === rolId);
 }

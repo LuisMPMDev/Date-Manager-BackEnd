@@ -112,6 +112,29 @@ button:disabled {
   white-space: nowrap;
 }
 
+/* Error junto a un campo de formulario (lo manda la API en `campos`). El borde lleva !important porque
+   cada pantalla fija el borde de sus campos con un selector más específico. */
+.campo-error {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rojo);
+}
+
+input[aria-invalid='true'],
+select[aria-invalid='true'] {
+  border-color: var(--rojo) !important;
+}
+
+/* Aviso de una sección cuyos datos el rol no puede ver: el resto de la pantalla sigue funcionando. */
+.aviso-seccion {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-left: 4px solid var(--apoyo);
+  background: var(--blanco);
+  color: var(--apoyo);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

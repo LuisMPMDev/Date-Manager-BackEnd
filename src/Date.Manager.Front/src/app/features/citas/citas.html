@@ -36,7 +36,7 @@
 
 @for (m of dialogosMover(); track m.cita.id) {
   <app-mover-cita [cita]="m.cita" [servicio]="m.servicio" [cliente]="nombreCompleto(m.cliente)"
-                  (movida)="movida($event)" (cerrar)="cerrarMover()" />
+                  (movida)="movida($event)" (cerrar)="cerrarMover()" (desactualizada)="recargar()" />
 }
 
 <div class="tabla-scroll">
@@ -69,17 +69,17 @@
                 <div class="acciones">
                   @if (confirmando() === f.cita.id) {
                     <span class="pregunta">¿Cancelar esta cita?</span>
-                    <button type="button" class="btn peligro" (click)="cancelar(f.cita.id)">Sí, cancelar</button>
+                    <button type="button" class="btn peligro" [disabled]="ocupada()" (click)="cancelar(f.cita.id)">Sí, cancelar</button>
                     <button type="button" class="btn" data-volver (click)="volver(f.cita.id)">No, volver</button>
                   } @else {
                     @if (sesion.puede('gestionar_citas')) {
-                      <button type="button" class="btn" data-accion="mover" (click)="abrirMover(f.cita.id)"
+                      <button type="button" class="btn" data-accion="mover" [disabled]="ocupada()" (click)="abrirMover(f.cita.id)"
                               [attr.aria-label]="'Mover cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Mover cita</button>
-                      <button type="button" class="btn peligro" data-accion="cancelar" (click)="pedirCancelacion(f.cita.id)"
+                      <button type="button" class="btn peligro" data-accion="cancelar" [disabled]="ocupada()" (click)="pedirCancelacion(f.cita.id)"
                               [attr.aria-label]="'Cancelar cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Cancelar cita</button>
                     }
                     @if (sesion.puede('atender_citas') && yaEmpezo(f.cita)) {
-                      <button type="button" class="btn" data-accion="atender" (click)="atender(f.cita.id)"
+                      <button type="button" class="btn" data-accion="atender" [disabled]="ocupada()" (click)="atender(f.cita.id)"
                               [attr.aria-label]="'Marcar como atendida la cita de ' + nombreCompleto(f.cliente) + ', ' + fechaLarga(f.cita.fecha) + ' ' + f.cita.inicio">Marcar como atendida</button>
                     }
                   }

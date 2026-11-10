@@ -1,13 +1,16 @@
 import {
-  afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, input, signal,
+  afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, input, output, signal,
 } from '@angular/core';
 import { AgendaRepo } from '../../core/agenda-repo';
-import { RolEnUsoError } from '../../core/errores';
 import { nuevoId } from '../../core/ids';
 import { Permiso, Rol, Usuario } from '../../core/models';
-import { CATALOGO_PERMISOS, conDependencias, puedeEliminarRol, validarCambioRol } from '../../core/permisos';
+import { CATALOGO_PERMISOS, conDependencias, MOTIVO_ROL_EN_USO, puedeEliminarRol, validarCambioRol } from '../../core/permisos';
 import { SesionService } from '../../core/sesion';
+import { errorDeFormulario, esConflicto, mensajeAccion } from '../../shared/errores';
 import { alternarPermiso, validarRolEditado, verCitasObligatorio } from './usuarios-logica';
+
+/** Claves de `campos` que el formulario muestra junto a su campo (los permisos van al error general). */
+const CAMPOS = ['nombre', 'descripcion'];
 
 @Component({
   selector: 'app-roles-seccion',
@@ -23,6 +26,10 @@ export class RolesSeccionComponent {
 
   readonly usuarios = input.required<Usuario[]>();
   readonly roles = input.required<Rol[]>();
+  /** Si no se pueden leer los usuarios (403), el aviso que se muestra: sin ellos no se sabe quién tiene cada rol. */
+  readonly avisoUsuarios = input('');
+  /** La API dijo que lo que se ve quedó viejo (409): quien tiene los datos debe recargarlos. */
+  readonly desactualizado = output<void>();
 
   protected readonly catalogo = CATALOGO_PERMISOS;
   protected readonly textoVerCitas = 'Necesario para cancelar, mover o atender citas.';
@@ -33,16 +40,20 @@ export class RolesSeccionComponent {
   protected readonly guardando = signal(false);
   protected readonly aviso = signal('');
   protected readonly error = signal('');
+  /** Errores por campo que mandó la API (claves ya normalizadas). */
+  protected readonly errores = signal<Record<string, string>>({});
 
   protected readonly esNuevo = computed(() => !this.roles().some(r => r.id === this.borrador()?.id));
   protected readonly verCitasFijo = computed(() => verCitasObligatorio(this.borrador()?.permisos ?? []));
 
   protected readonly filas = computed(() => {
     const usuarios = this.usuarios();
+    const sinUsuarios = this.avisoUsuarios() !== '';
     return this.roles().map(rol => ({
       rol,
-      usuarios: usuarios.filter(u => u.rolId === rol.id).length,
-      motivo: puedeEliminarRol(rol.id, usuarios) ? null : new RolEnUsoError().message,
+      usuarios: sinUsuarios ? null : usuarios.filter(u => u.rolId === rol.id).length,
+      // sin poder leer los usuarios no se adivina el motivo: si el rol está en uso, la API responde 409
+      motivo: sinUsuarios || puedeEliminarRol(rol.id, usuarios) ? null : MOTIVO_ROL_EN_USO,
     }));
   });
 
@@ -89,19 +100,22 @@ export class RolesSeccionComponent {
       this.error.set(mensaje);
       return;
     }
-    this.guardando.set(true);
+    this.guardando.set(true); // antes del primer await: un segundo clic ya no pasa
     this.error.set('');
+    this.errores.set({});
     try {
       await this.repo.guardarRol(rol);
-    } catch {
-      this.error.set('No pudimos guardar el rol. Intenta de nuevo.');
+      await this.refrescarSesion();
+      this.aviso.set('Rol guardado.');
+      this.cerrar();
+    } catch (e) {
+      const { campos, general } = errorDeFormulario(e, CAMPOS, 'No pudimos guardar el rol. Intenta de nuevo.');
+      this.errores.set(campos);
+      this.error.set(general);
+      if (esConflicto(e)) this.desactualizado.emit();
+    } finally {
       this.guardando.set(false);
-      return;
     }
-    this.guardando.set(false);
-    await this.refrescarSesion();
-    this.aviso.set('Rol guardado.');
-    this.cerrar();
   }
 
   protected pedirEliminar(fila: { rol: Rol; motivo: string | null }): void {
@@ -121,17 +135,21 @@ export class RolesSeccionComponent {
   }
 
   protected async confirmarEliminar(rol: Rol): Promise<void> {
+    if (this.guardando()) return;
     this.confirmando.set(null);
+    this.guardando.set(true); // antes del primer await
     try {
       await this.repo.eliminarRol(rol.id);
+      await this.refrescarSesion();
+      this.error.set('');
+      this.aviso.set('Rol eliminado.');
+      this.enfocar(() => this.host.nativeElement.querySelector<HTMLElement>('[data-nuevo]'));
     } catch (e) {
-      this.error.set(e instanceof RolEnUsoError ? e.message : 'No pudimos eliminar el rol. Intenta de nuevo.');
-      return;
+      this.error.set(mensajeAccion(e, 'No pudimos eliminar el rol. Intenta de nuevo.'));
+      if (esConflicto(e)) this.desactualizado.emit();
+    } finally {
+      this.guardando.set(false);
     }
-    await this.refrescarSesion();
-    this.error.set('');
-    this.aviso.set('Rol eliminado.');
-    this.enfocar(() => this.host.nativeElement.querySelector<HTMLElement>('[data-nuevo]'));
   }
 
   private fila(id: string): HTMLElement | null {
@@ -152,6 +170,7 @@ export class RolesSeccionComponent {
     this.aviso.set('');
     this.error.set('');
     this.confirmando.set(null);
+    this.errores.set({});
     this.borrador.set(borrador);
     this.enfocar(() => this.host.nativeElement.querySelector<HTMLElement>('form h4'));
   }
@@ -162,6 +181,7 @@ export class RolesSeccionComponent {
     this.abiertoDesde = null;
     this.borrador.set(null);
     this.error.set('');
+    this.errores.set({});
     this.enfocar(() => (origen?.isConnected ? origen : this.host.nativeElement.querySelector<HTMLElement>('[data-nuevo]')));
   }
 

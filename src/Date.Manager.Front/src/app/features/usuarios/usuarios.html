@@ -6,9 +6,9 @@
 
 @if (cargado()) {
   @if (verUsuarios()) {
-    <app-usuarios-seccion [usuarios]="usuarios()" [roles]="roles()" />
+    <app-usuarios-seccion [usuarios]="usuarios()" [roles]="roles()" [avisoRoles]="avisoRoles()" (desactualizado)="recargar()" />
   }
   @if (verRoles()) {
-    <app-roles-seccion [usuarios]="usuarios()" [roles]="roles()" />
+    <app-roles-seccion [usuarios]="usuarios()" [roles]="roles()" [avisoUsuarios]="avisoUsuarios()" (desactualizado)="recargar()" />
   }
 }

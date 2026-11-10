@@ -1,7 +1,9 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { DiaSemana, Servicio, VentanaDisponibilidad } from '../../core/models';
 import { validarServicio } from '../../core/validaciones';
+import { errorDeFormulario, esConflicto, esSinPermiso, mensajeAccion } from '../../shared/errores';
 import { moneda } from '../../shared/formato';
 import {
   BorradorServicio, borradorDe, borradorVacio, OPCIONES_DIA, resumenVentanas, servicioDe, ventanaNueva,
@@ -9,6 +11,8 @@ import {
 
 type CampoTexto = 'nombre' | 'duracion' | 'valor';
 type CampoVentana = 'inicio' | 'fin';
+/** Claves de `campos` que el formulario muestra junto a su campo (la API llama `duracionMin` a la duración). */
+const CAMPOS = ['nombre', 'duracionMin', 'valor'];
 
 @Component({
   selector: 'app-servicios',
@@ -20,6 +24,7 @@ export class ServiciosComponent {
   private readonly repo = inject(AgendaRepo);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly router = inject(Router);
 
   protected readonly moneda = moneda;
   protected readonly resumenVentanas = resumenVentanas;
@@ -28,6 +33,11 @@ export class ServiciosComponent {
   protected readonly servicios = signal<Servicio[]>([]);
   protected readonly borrador = signal<BorradorServicio | null>(null);
   protected readonly error = signal('');
+  /** Errores por campo que mandó la API (claves ya normalizadas). */
+  protected readonly errores = signal<Record<string, string>>({});
+  /** Error de la lista (la carga o activar/desactivar), fuera del formulario. */
+  protected readonly errorLista = signal('');
+  /** Hay una escritura en curso (guardar o activar/desactivar): bloquea los botones que escriben. */
   protected readonly guardando = signal(false);
 
   protected readonly titulo = computed(() =>
@@ -35,6 +45,7 @@ export class ServiciosComponent {
   );
 
   private abiertoDesde: HTMLElement | null = null;
+  private pedido = 0; // descarta respuestas que llegan tarde
 
   constructor() {
     effect(() => {
@@ -52,7 +63,17 @@ export class ServiciosComponent {
   }
 
   protected async alternarActivo(s: Servicio): Promise<void> {
-    await this.repo.guardarServicio({ ...s, activo: !s.activo });
+    if (this.guardando()) return;
+    this.guardando.set(true); // antes del primer await
+    this.errorLista.set('');
+    try {
+      await this.repo.guardarServicio({ ...s, activo: !s.activo });
+    } catch (e) {
+      this.errorLista.set(mensajeAccion(e, 'No pudimos cambiar el estado del servicio. Intenta de nuevo.'));
+      if (esConflicto(e)) void this.cargar();
+    } finally {
+      this.guardando.set(false);
+    }
   }
 
   protected cancelar(): void {
@@ -97,12 +118,17 @@ export class ServiciosComponent {
       this.error.set(mensaje);
       return;
     }
-    this.guardando.set(true);
+    this.guardando.set(true); // antes del primer await: un segundo clic ya no pasa
+    this.error.set('');
+    this.errores.set({});
     try {
       await this.repo.guardarServicio(servicio);
       this.cerrar();
-    } catch {
-      this.error.set('No pudimos guardar el servicio. Intenta de nuevo.');
+    } catch (e) {
+      const { campos, general } = errorDeFormulario(e, CAMPOS, 'No pudimos guardar el servicio. Intenta de nuevo.');
+      this.errores.set(campos);
+      this.error.set(general);
+      if (esConflicto(e)) void this.cargar(); // lo que se ve quedó viejo
     } finally {
       this.guardando.set(false);
     }
@@ -111,6 +137,8 @@ export class ServiciosComponent {
   private abrir(borrador: BorradorServicio, evento: Event): void {
     this.abiertoDesde = evento.currentTarget as HTMLElement;
     this.error.set('');
+    this.errores.set({});
+    this.errorLista.set('');
     this.borrador.set(borrador);
     afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('form h3')?.focus(), {
       injector: this.injector,
@@ -123,6 +151,7 @@ export class ServiciosComponent {
     this.abiertoDesde = null;
     this.borrador.set(null);
     this.error.set('');
+    this.errores.set({});
     afterNextRender(
       () => {
         const visible = origen?.isConnected ? origen : this.host.nativeElement.querySelector<HTMLElement>('[data-nuevo]');
@@ -141,6 +170,16 @@ export class ServiciosComponent {
   }
 
   private async cargar(): Promise<void> {
-    this.servicios.set(await this.repo.servicios());
+    const numero = ++this.pedido;
+    try {
+      const servicios = await this.repo.servicios();
+      if (numero !== this.pedido) return;
+      this.servicios.set(servicios);
+      this.errorLista.set('');
+    } catch (e) {
+      if (numero !== this.pedido) return;
+      if (esSinPermiso(e)) void this.router.navigateByUrl('/sin-acceso');
+      else this.errorLista.set('No se pudieron cargar los servicios.');
+    }
   }
 }

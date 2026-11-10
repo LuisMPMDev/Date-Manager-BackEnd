@@ -33,6 +33,6 @@
 
   <div class="acciones">
     <button type="button" class="btn primario" [disabled]="!elegido() || moviendo()" (click)="mover()">Mover cita</button>
-    <button type="button" class="btn" (click)="cerrar.emit()">Cerrar</button>
+    <button type="button" class="btn" [disabled]="moviendo()" (click)="cerrar.emit()">Cerrar</button>
   </div>
 </section>

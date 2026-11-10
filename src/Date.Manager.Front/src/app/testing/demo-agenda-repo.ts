@@ -1,11 +1,12 @@
 import { DestroyRef, inject, Injectable, signal } from '@angular/core';
 import { AgendaRepo, DatosCliente } from '../core/agenda-repo';
-import { HorarioNoDisponibleError, RELOJ, RolEnUsoError } from '../core/errores';
+import { RELOJ } from '../core/errores';
 import { aFechaISO } from '../core/fechas';
 import { nuevoId } from '../core/ids';
 import { horariosLibres, sumarMinutos } from '../core/horarios';
 import { Cita, Cliente, Datos, Rol, Servicio, Usuario, UsuarioForm } from '../core/models';
 import { conDependencias, puedeEliminarRol } from '../core/permisos';
+import { HorarioNoDisponibleError, RolEnUsoError } from './errores-demo';
 import { sembrar } from './seed';
 
 const CLAVE_ALMACEN = 'datemanager.demo.v1';

@@ -1,13 +1,16 @@
 import {
-  afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, input, signal,
+  afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, input, output, signal,
 } from '@angular/core';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { nuevoId } from '../../core/ids';
 import { Rol, Usuario, UsuarioForm } from '../../core/models';
 import { SesionService } from '../../core/sesion';
+import { errorDeFormulario, esConflicto, mensajeAccion } from '../../shared/errores';
 import { motivoNoCambiarRol, motivoNoEliminarUsuario, validarUsuario } from './usuarios-logica';
 
 type CampoTexto = 'nombre' | 'apellido' | 'usuario' | 'correo' | 'telefono' | 'clave';
+/** Claves de `campos` que el formulario muestra junto a su campo. */
+const CAMPOS = ['nombre', 'apellido', 'usuario', 'correo', 'telefono', 'clave', 'rolId'];
 
 @Component({
   selector: 'app-usuarios-seccion',
@@ -23,6 +26,10 @@ export class UsuariosSeccionComponent {
 
   readonly usuarios = input.required<Usuario[]>();
   readonly roles = input.required<Rol[]>();
+  /** Si no se pueden leer los roles (403), el aviso que se muestra en lugar del rol de cada usuario. */
+  readonly avisoRoles = input('');
+  /** La API dijo que lo que se ve quedó viejo (409): quien tiene los datos debe recargarlos. */
+  readonly desactualizado = output<void>();
 
   /** Copia del usuario que se está creando o editando: la tabla no cambia hasta guardar. */
   protected readonly borrador = signal<UsuarioForm | null>(null);
@@ -30,6 +37,8 @@ export class UsuariosSeccionComponent {
   protected readonly guardando = signal(false);
   protected readonly aviso = signal('');
   protected readonly error = signal('');
+  /** Errores por campo que mandó la API (claves ya normalizadas). */
+  protected readonly errores = signal<Record<string, string>>({});
 
   protected readonly esNuevo = computed(() => !this.usuarios().some(u => u.id === this.borrador()?.id));
 
@@ -39,7 +48,7 @@ export class UsuariosSeccionComponent {
     const roles = this.roles();
     return usuarios.map(usuario => ({
       usuario,
-      rol: roles.find(r => r.id === usuario.rolId)?.nombre ?? 'Sin rol',
+      rol: roles.find(r => r.id === usuario.rolId)?.nombre ?? (this.avisoRoles() ? '—' : 'Sin rol'),
       nombre: `${usuario.nombre} ${usuario.apellido}`,
       motivo: motivoNoEliminarUsuario({ objetivo: usuario, actorId, usuarios, roles }),
     }));
@@ -90,19 +99,22 @@ export class UsuariosSeccionComponent {
       this.error.set(mensaje);
       return;
     }
-    this.guardando.set(true);
+    this.guardando.set(true); // antes del primer await: un segundo clic ya no pasa
     this.error.set('');
+    this.errores.set({});
     try {
       await this.repo.guardarUsuario(usuario);
-    } catch {
-      this.error.set('No pudimos guardar el usuario. Intenta de nuevo.');
+      await this.refrescarSesion();
+      this.aviso.set('Usuario guardado.');
+      this.cerrar();
+    } catch (e) {
+      const { campos, general } = errorDeFormulario(e, CAMPOS, 'No pudimos guardar el usuario. Intenta de nuevo.');
+      this.errores.set(campos);
+      this.error.set(general);
+      if (esConflicto(e)) this.desactualizado.emit();
+    } finally {
       this.guardando.set(false);
-      return;
     }
-    this.guardando.set(false);
-    await this.refrescarSesion();
-    this.aviso.set('Usuario guardado.');
-    this.cerrar();
   }
 
   protected pedirEliminar(fila: { usuario: Usuario; motivo: string | null }): void {
@@ -122,6 +134,7 @@ export class UsuariosSeccionComponent {
   }
 
   protected async confirmarEliminar(usuario: Usuario): Promise<void> {
+    if (this.guardando()) return;
     const motivo = motivoNoEliminarUsuario({
       objetivo: usuario, actorId: this.sesion.usuario()?.id ?? '', usuarios: this.usuarios(), roles: this.roles(),
     });
@@ -130,16 +143,19 @@ export class UsuariosSeccionComponent {
       this.error.set(motivo);
       return;
     }
+    this.guardando.set(true); // antes del primer await
     try {
       await this.repo.eliminarUsuario(usuario.id);
-    } catch {
-      this.error.set('No pudimos eliminar el usuario. Intenta de nuevo.');
-      return;
+      await this.refrescarSesion();
+      this.error.set('');
+      this.aviso.set('Usuario eliminado.');
+      this.enfocar(() => this.host.nativeElement.querySelector<HTMLElement>('[data-nuevo]'));
+    } catch (e) {
+      this.error.set(mensajeAccion(e, 'No pudimos eliminar el usuario. Intenta de nuevo.'));
+      if (esConflicto(e)) this.desactualizado.emit();
+    } finally {
+      this.guardando.set(false);
     }
-    await this.refrescarSesion();
-    this.error.set('');
-    this.aviso.set('Usuario eliminado.');
-    this.enfocar(() => this.host.nativeElement.querySelector<HTMLElement>('[data-nuevo]'));
   }
 
   private fila(id: string): HTMLElement | null {
@@ -160,6 +176,7 @@ export class UsuariosSeccionComponent {
     this.aviso.set('');
     this.error.set('');
     this.confirmando.set(null);
+    this.errores.set({});
     this.borrador.set(borrador);
     this.enfocar(() => this.host.nativeElement.querySelector<HTMLElement>('form h4'));
   }
@@ -170,6 +187,7 @@ export class UsuariosSeccionComponent {
     this.abiertoDesde = null;
     this.borrador.set(null);
     this.error.set('');
+    this.errores.set({});
     this.enfocar(() => (origen?.isConnected ? origen : this.host.nativeElement.querySelector<HTMLElement>('[data-nuevo]')));
   }
 

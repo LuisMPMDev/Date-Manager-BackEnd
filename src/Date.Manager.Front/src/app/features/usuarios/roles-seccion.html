@@ -5,6 +5,9 @@
   </div>
 
   <p class="aviso-ok" role="status">{{ aviso() }}</p>
+  @if (avisoUsuarios()) {
+    <p class="aviso-seccion" role="status" data-aviso="usuarios">Usuarios con cada rol: {{ avisoUsuarios() }}</p>
+  }
 
   @if (borrador(); as b) {
     <form class="formulario" (submit)="guardar($event)" novalidate>
@@ -13,11 +16,19 @@
       <div class="campos">
         <div class="campo">
           <label for="rol-nombre">Nombre</label>
-          <input id="rol-nombre" name="nombre" type="text" autocomplete="off" [value]="b.nombre" (input)="escribir('nombre', $event)" />
+          <input id="rol-nombre" name="nombre" type="text" autocomplete="off" [value]="b.nombre" (input)="escribir('nombre', $event)"
+                 [attr.aria-invalid]="errores()['nombre'] ? 'true' : null" [attr.aria-describedby]="errores()['nombre'] ? 'error-rol-nombre' : null" />
+          @if (errores()['nombre']) {
+            <p class="campo-error" id="error-rol-nombre">{{ errores()['nombre'] }}</p>
+          }
         </div>
         <div class="campo">
           <label for="rol-descripcion">Descripción</label>
-          <input id="rol-descripcion" name="descripcion" type="text" autocomplete="off" [value]="b.descripcion" (input)="escribir('descripcion', $event)" />
+          <input id="rol-descripcion" name="descripcion" type="text" autocomplete="off" [value]="b.descripcion" (input)="escribir('descripcion', $event)"
+                 [attr.aria-invalid]="errores()['descripcion'] ? 'true' : null" [attr.aria-describedby]="errores()['descripcion'] ? 'error-rol-descripcion' : null" />
+          @if (errores()['descripcion']) {
+            <p class="campo-error" id="error-rol-descripcion">{{ errores()['descripcion'] }}</p>
+          }
         </div>
       </div>
 
@@ -48,7 +59,7 @@
 
       <div class="acciones">
         <button type="submit" class="btn primario" [disabled]="guardando()">Guardar rol</button>
-        <button type="button" class="btn" (click)="cancelar()">Cancelar</button>
+        <button type="button" class="btn" [disabled]="guardando()" (click)="cancelar()">Cancelar</button>
       </div>
     </form>
   } @else if (error()) {
@@ -71,13 +82,13 @@
           <tr [attr.data-fila]="f.rol.id">
             <td>{{ f.rol.nombre }}</td>
             <td>{{ f.rol.descripcion }}</td>
-            <td>{{ f.usuarios }}</td>
+            <td>{{ f.usuarios ?? '—' }}</td>
             <td>{{ f.rol.permisos.length }}</td>
             <td class="acciones-fila">
               @if (confirmando() === f.rol.id) {
                 <div class="confirmar" role="group" [attr.aria-label]="'Confirmar eliminación del rol ' + f.rol.nombre">
                   <span class="pregunta">¿Eliminar el rol {{ f.rol.nombre }}?</span>
-                  <button type="button" class="btn peligro" (click)="confirmarEliminar(f.rol)">Sí, eliminar</button>
+                  <button type="button" class="btn peligro" [disabled]="guardando()" (click)="confirmarEliminar(f.rol)">Sí, eliminar</button>
                   <button type="button" class="btn" data-volver (click)="volver(f.rol.id)">No, volver</button>
                 </div>
               } @else {

@@ -10,17 +10,29 @@
     <div class="campos">
       <div class="campo ancho">
         <label for="campo-nombre">Nombre</label>
-        <input id="campo-nombre" name="nombre" type="text" [value]="b.nombre" (input)="escribir('nombre', $event)" />
+        <input id="campo-nombre" name="nombre" type="text" [value]="b.nombre" (input)="escribir('nombre', $event)"
+               [attr.aria-invalid]="errores()['nombre'] ? 'true' : null" [attr.aria-describedby]="errores()['nombre'] ? 'error-nombre' : null" />
+        @if (errores()['nombre']) {
+          <p class="campo-error" id="error-nombre">{{ errores()['nombre'] }}</p>
+        }
       </div>
       <div class="campo">
         <label for="campo-duracion">Duración (min)</label>
         <input id="campo-duracion" name="duracion" type="number" min="1" step="1" inputmode="numeric"
-               [value]="b.duracion" (input)="escribir('duracion', $event)" />
+               [value]="b.duracion" (input)="escribir('duracion', $event)"
+               [attr.aria-invalid]="errores()['duracionMin'] ? 'true' : null" [attr.aria-describedby]="errores()['duracionMin'] ? 'error-duracion' : null" />
+        @if (errores()['duracionMin']) {
+          <p class="campo-error" id="error-duracion">{{ errores()['duracionMin'] }}</p>
+        }
       </div>
       <div class="campo">
         <label for="campo-valor">Valor</label>
         <input id="campo-valor" name="valor" type="number" min="0" step="1000" inputmode="numeric"
-               [value]="b.valor" (input)="escribir('valor', $event)" />
+               [value]="b.valor" (input)="escribir('valor', $event)"
+               [attr.aria-invalid]="errores()['valor'] ? 'true' : null" [attr.aria-describedby]="errores()['valor'] ? 'error-valor' : null" />
+        @if (errores()['valor']) {
+          <p class="campo-error" id="error-valor">{{ errores()['valor'] }}</p>
+        }
       </div>
       <label class="activo">
         <input name="activo" type="checkbox" [checked]="b.activo" (change)="marcarActivo($event)" />
@@ -64,9 +76,13 @@
 
     <div class="acciones">
       <button type="submit" class="btn primario" [disabled]="guardando()">Guardar servicio</button>
-      <button type="button" class="btn" (click)="cancelar()">Cancelar</button>
+      <button type="button" class="btn" [disabled]="guardando()" (click)="cancelar()">Cancelar</button>
     </div>
   </form>
+}
+
+@if (errorLista()) {
+  <p class="alerta" role="alert">{{ errorLista() }}</p>
 }
 
 <div class="tabla-scroll">
@@ -92,7 +108,7 @@
           <td class="acciones-fila">
             <button type="button" class="btn" [attr.aria-label]="'Editar ' + s.nombre" (click)="editar(s, $event)">Editar</button>
             <button type="button" class="btn" [attr.aria-label]="(s.activo ? 'Desactivar ' : 'Activar ') + s.nombre"
-                    (click)="alternarActivo(s)">{{ s.activo ? 'Desactivar' : 'Activar' }}</button>
+                    [disabled]="guardando()" (click)="alternarActivo(s)">{{ s.activo ? 'Desactivar' : 'Activar' }}</button>
           </td>
         </tr>
       }

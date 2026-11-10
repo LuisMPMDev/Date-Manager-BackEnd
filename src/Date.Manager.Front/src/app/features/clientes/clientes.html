@@ -14,19 +14,35 @@
     <div class="campos">
       <div class="campo">
         <label for="campo-nombre">Nombre</label>
-        <input id="campo-nombre" name="nombre" type="text" autocomplete="off" [value]="b.nombre" (input)="escribir('nombre', $event)" />
+        <input id="campo-nombre" name="nombre" type="text" autocomplete="off" [value]="b.nombre" (input)="escribir('nombre', $event)"
+               [attr.aria-invalid]="errores()['nombre'] ? 'true' : null" [attr.aria-describedby]="errores()['nombre'] ? 'error-nombre' : null" />
+        @if (errores()['nombre']) {
+          <p class="campo-error" id="error-nombre">{{ errores()['nombre'] }}</p>
+        }
       </div>
       <div class="campo">
         <label for="campo-apellido">Apellido</label>
-        <input id="campo-apellido" name="apellido" type="text" autocomplete="off" [value]="b.apellido" (input)="escribir('apellido', $event)" />
+        <input id="campo-apellido" name="apellido" type="text" autocomplete="off" [value]="b.apellido" (input)="escribir('apellido', $event)"
+               [attr.aria-invalid]="errores()['apellido'] ? 'true' : null" [attr.aria-describedby]="errores()['apellido'] ? 'error-apellido' : null" />
+        @if (errores()['apellido']) {
+          <p class="campo-error" id="error-apellido">{{ errores()['apellido'] }}</p>
+        }
       </div>
       <div class="campo">
         <label for="campo-telefono">Teléfono</label>
-        <input id="campo-telefono" name="telefono" type="tel" autocomplete="off" [value]="b.telefono" (input)="escribir('telefono', $event)" />
+        <input id="campo-telefono" name="telefono" type="tel" autocomplete="off" [value]="b.telefono" (input)="escribir('telefono', $event)"
+               [attr.aria-invalid]="errores()['telefono'] ? 'true' : null" [attr.aria-describedby]="errores()['telefono'] ? 'error-telefono' : null" />
+        @if (errores()['telefono']) {
+          <p class="campo-error" id="error-telefono">{{ errores()['telefono'] }}</p>
+        }
       </div>
       <div class="campo">
         <label for="campo-correo">Correo</label>
-        <input id="campo-correo" name="correo" type="email" autocomplete="off" [value]="b.correo" (input)="escribir('correo', $event)" />
+        <input id="campo-correo" name="correo" type="email" autocomplete="off" [value]="b.correo" (input)="escribir('correo', $event)"
+               [attr.aria-invalid]="errores()['correo'] ? 'true' : null" [attr.aria-describedby]="errores()['correo'] ? 'error-correo' : null" />
+        @if (errores()['correo']) {
+          <p class="campo-error" id="error-correo">{{ errores()['correo'] }}</p>
+        }
       </div>
     </div>
 
@@ -36,11 +52,15 @@
 
     <div class="acciones">
       <button type="submit" class="btn primario" [disabled]="guardando()">Guardar cliente</button>
-      <button type="button" class="btn" (click)="cancelar()">Cancelar</button>
+      <button type="button" class="btn" [disabled]="guardando()" (click)="cancelar()">Cancelar</button>
     </div>
   </form>
 } @else if (error()) {
   <p class="alerta" role="alert">{{ error() }}</p>
+}
+
+@if (avisoCitas()) {
+  <p class="aviso-seccion" role="status" data-aviso="citas">Historial de citas: {{ avisoCitas() }}</p>
 }
 
 <div class="tabla-scroll">
@@ -62,7 +82,7 @@
           <td>{{ f.cliente.apellido }}</td>
           <td class="nowrap">{{ f.cliente.telefono }}</td>
           <td>{{ f.cliente.correo }}</td>
-          <td>{{ f.citas }}</td>
+          <td>{{ f.citas ?? '—' }}</td>
           <td class="nowrap">
             <button type="button" class="btn" (click)="editar(f.cliente)"
                     [attr.aria-label]="'Editar a ' + f.cliente.nombre + ' ' + f.cliente.apellido">Editar</button>

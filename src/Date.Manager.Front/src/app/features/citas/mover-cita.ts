@@ -1,9 +1,9 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, input, OnInit, output, signal } from '@angular/core';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { AhoraService } from '../../core/ahora';
-import { HorarioNoDisponibleError } from '../../core/errores';
 import { aHHmm, isoDia, MAX_DIAS_ANTICIPACION, sumarMinutos } from '../../core/horarios';
 import { Cita, Servicio } from '../../core/models';
+import { esConflicto, mensajeAccion, mensajeDe } from '../../shared/errores';
 import { aFechaISO, fechaLarga, sumarDias } from '../../shared/formato';
 import { construirRegla } from '../../shared/regla-bloques';
 import { ReglaTiempoComponent } from '../../shared/regla-tiempo';
@@ -30,6 +30,8 @@ export class MoverCitaComponent implements OnInit {
   readonly cliente = input('');
   readonly movida = output<Cita>();
   readonly cerrar = output<void>();
+  /** La API dijo que algo cambió (409): la lista de citas de la pantalla también debe recargarse. */
+  readonly desactualizada = output<void>();
 
   protected readonly fechaLarga = fechaLarga;
   protected readonly hoy = aFechaISO(this.ahora());
@@ -90,14 +92,13 @@ export class MoverCitaComponent implements OnInit {
   protected async mover(): Promise<void> {
     const inicio = this.elegido();
     if (!inicio || this.moviendo()) return;
-    this.moviendo.set(true);
+    this.moviendo.set(true); // antes del primer await: un segundo clic ya no pasa
     try {
       this.movida.emit(await this.repo.moverCita(this.cita().id, this.fecha(), inicio));
     } catch (e) {
-      this.error.set(
-        e instanceof HorarioNoDisponibleError ? e.message : 'No pudimos mover la cita. Intenta de nuevo.',
-      );
+      this.error.set(mensajeAccion(e, 'No pudimos mover la cita. Intenta de nuevo.'));
       this.elegido.set(null);
+      if (esConflicto(e)) this.desactualizada.emit();
       await this.cargarLibres();
     } finally {
       this.moviendo.set(false);
@@ -106,7 +107,13 @@ export class MoverCitaComponent implements OnInit {
 
   private async cargarLibres(): Promise<void> {
     const numero = ++this.pedido;
-    const libres = await this.repo.horariosLibres(this.servicio().id, this.fecha(), this.cita().id);
-    if (numero === this.pedido) this.libres.set(libres);
+    try {
+      const libres = await this.repo.horariosLibres(this.servicio().id, this.fecha(), this.cita().id);
+      if (numero === this.pedido) this.libres.set(libres);
+    } catch (e) {
+      if (numero !== this.pedido) return;
+      this.libres.set([]);
+      if (!this.error()) this.error.set(mensajeDe(e, 'No se pudieron cargar los horarios.')); // no pisa el error de mover
+    }
   }
 }

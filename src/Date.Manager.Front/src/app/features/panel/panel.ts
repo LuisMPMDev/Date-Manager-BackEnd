@@ -2,16 +2,15 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { Router } from '@angular/router';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { AhoraService } from '../../core/ahora';
-import { ApiError } from '../../core/api-error';
 import { Alerta, Inicio } from '../../core/inicio';
 import { InicioApi } from '../../core/inicio-api';
 import { SesionService } from '../../core/sesion';
 import { AgendaDiaComponent } from '../../shared/agenda-dia';
+import { AVISO_SIN_PERMISO, esSinPermiso } from '../../shared/errores';
 import { fechaLarga } from '../../shared/formato';
 import { GraficaComponent } from '../../shared/grafica';
 import { construirKpis, serieCitasPorDia, serieOcupacion } from './panel-presentacion';
 
-const SIN_PERMISO = 'No tienes permiso para ver esta información.';
 const NO_CARGO = 'No se pudo cargar el panel.';
 const NO_ACTUALIZO = 'No se pudo actualizar el panel.';
 
@@ -87,7 +86,7 @@ export class PanelComponent {
       this.aviso.set('');
     } catch (e) {
       if (numero !== this.pedido) return;
-      const sinPermiso = e instanceof ApiError && e.status === 403;
+      const sinPermiso = esSinPermiso(e);
       if (this.datos() && !sinPermiso) {
         // Una recarga fallida no borra un tablero que estaba bien: se deja una nota hasta la siguiente carga correcta.
         this.aviso.set(NO_ACTUALIZO);
@@ -95,7 +94,7 @@ export class PanelComponent {
       }
       this.datos.set(null);
       this.aviso.set('');
-      this.error.set(sinPermiso ? SIN_PERMISO : NO_CARGO);
+      this.error.set(sinPermiso ? AVISO_SIN_PERMISO : NO_CARGO);
     }
   }
 }

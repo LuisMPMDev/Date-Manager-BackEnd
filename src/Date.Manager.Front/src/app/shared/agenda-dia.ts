@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { AgendaRepo } from '../core/agenda-repo';
 import { AhoraService } from '../core/ahora';
 import { Cita, Cliente, Servicio } from '../core/models';
 import { construirAgendaDia } from './agenda-dia-columnas';
+import { AVISO_SIN_PERMISO, esSinPermiso } from './errores';
 import { aFechaISO } from './formato';
 import { ReglaTiempoComponent } from './regla-tiempo';
 
@@ -20,6 +22,7 @@ import { ReglaTiempoComponent } from './regla-tiempo';
 export class AgendaDiaComponent {
   private readonly repo = inject(AgendaRepo);
   private readonly ahoraActual = inject(AhoraService).ahora;
+  private readonly router = inject(Router);
 
   readonly fecha = input.required<string>();
 
@@ -27,6 +30,9 @@ export class AgendaDiaComponent {
   private readonly citas = signal<Cita[]>([]);
   private readonly clientes = signal<Cliente[]>([]);
   protected readonly cargado = signal(false);
+  protected readonly error = signal('');
+  /** Por qué la agenda no trae nombres de cliente (sin permiso o falló la carga); vacío si se leyeron bien. */
+  protected readonly avisoClientes = signal('');
 
   private pedido = 0; // descarta respuestas que llegan tarde
 
@@ -52,17 +58,33 @@ export class AgendaDiaComponent {
     });
   }
 
+  /** Servicios y citas son la llamada principal; los clientes son auxiliares (solo ponen el nombre en cada bloque). */
   private async cargar(): Promise<void> {
     const numero = ++this.pedido;
-    const [servicios, citas, clientes] = await Promise.all([
+    const [servicios, citas, clientes] = await Promise.allSettled([
       this.repo.servicios(),
       this.repo.citas(),
       this.repo.clientes(),
     ]);
     if (numero !== this.pedido) return;
-    this.servicios.set(servicios);
-    this.citas.set(citas);
-    this.clientes.set(clientes);
+    if (servicios.status === 'rejected' || citas.status === 'rejected') {
+      const causa = servicios.status === 'rejected' ? servicios.reason : (citas as PromiseRejectedResult).reason;
+      if (esSinPermiso(causa)) void this.router.navigateByUrl('/sin-acceso');
+      else this.error.set('No se pudo cargar la agenda.'); // lo que ya se veía se conserva
+      return;
+    }
+    this.servicios.set(servicios.value);
+    this.citas.set(citas.value);
+    this.error.set('');
+    if (clientes.status === 'fulfilled') {
+      this.clientes.set(clientes.value);
+      this.avisoClientes.set('');
+    } else {
+      this.clientes.set([]); // sin nombres: cada bloque dice «Cliente»
+      this.avisoClientes.set(
+        esSinPermiso(clientes.reason) ? AVISO_SIN_PERMISO : 'No se pudieron cargar los nombres de los clientes.',
+      );
+    }
     this.cargado.set(true);
   }
 }
