@@ -225,7 +225,7 @@ Todo error es JSON (problem details) con las propiedades `codigo` y `mensaje` (e
 
 ## Reglas en la base de datos
 
-Desde las migraciones `V7`–`V9` la base rechaza por sí misma lo que la aplicación ya valida antes de guardar. Es
+Desde las migraciones `V7`–`V10` la base rechaza por sí misma lo que la aplicación ya valida antes de guardar. Es
 la última defensa ante escrituras directas (SQL a mano, otro cliente) y ante carreras; el flujo normal de la API
 no debería llegar a ellas. Todas las restricciones se crean validadas (`WITH CHECK`), así que valen también para
 los datos ya guardados.
@@ -235,14 +235,14 @@ los datos ya guardados.
 | `cancelada_en` tiene valor si y solo si la cita está `Cancelada` | `ck_cita_cancelada_coherente` (`V7`) | Cancelar una cita fija la fecha de cancelación; ningún otro estado la lleva | `EsquemaRestriccionesTest` |
 | `cancelada_en >= creada_en` | `ck_cita_cancelada_posterior` (`V7`) | La cancelación es posterior a la creación | `EsquemaRestriccionesTest` |
 | `nombre`, `apellido` y `telefono` de cliente, `nombre` de usuario, de servicio y de rol: no vacíos ni solo espacios | `ck_cliente_nombre_no_vacio`, `ck_cliente_apellido_no_vacio`, `ck_cliente_telefono_no_vacio`, `ck_usuario_nombre_no_vacio`, `ck_servicio_nombre_no_vacio`, `ck_rol_nombre_no_vacio` (`V7`) | `@NotBlank` y recorte de espacios de la capa de aplicación | `EsquemaRestriccionesTest` |
-| Correo de cliente y de usuario: una sola `@`, un punto en el dominio, sin espacios y sin letras A-Z ASCII (en usuario se admite vacío: el administrador inicial se crea sin correo) | `ck_cliente_correo_forma`, `ck_usuario_correo_forma` (`V7`) | La aplicación guarda el correo recortado y en minúsculas, con la forma `^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$` (la de SQL es algo más laxa, nunca más estricta) | `EsquemaRestriccionesTest` |
+| Correo de cliente y de usuario: una sola `@`, un punto en el dominio, sin espacios y sin letras A-Z ASCII (en usuario se admite vacío: el administrador inicial se crea sin correo) | `ck_cliente_correo_forma`, `ck_usuario_correo_forma` (`V7`) | La aplicación guarda el correo recortado y en minúsculas, con la forma `^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$` (la de SQL es algo más laxa, salvo con `＠` y `．` de ancho completo: ver «Lo que las reglas no cubren») | `EsquemaRestriccionesTest` |
 | Nombre de usuario (`usuario.usuario`): no vacío, sin espacios en los extremos y sin A-Z ASCII | `ck_usuario_usuario_forma` (`V7`) | La aplicación recorta y pasa a minúsculas | `EsquemaRestriccionesTest` |
 | `clave_hash` tiene forma de hash BCrypt (`$2a$`/`$2b$`/`$2y$`, dos dígitos de costo y 53 caracteres, 60 en total) | `ck_usuario_clave_hash_bcrypt` (`V7`) | Nunca se guarda la contraseña, solo el hash del codificador | `EsquemaRestriccionesTest` |
 | `servicio.duracion_min <= 1440` | `ck_servicio_duracion_max` (`V7`) | `Validaciones.MAX_DURACION_MIN` | `EsquemaRestriccionesTest` |
 | `desactivado_en >= creado_en` en los enlaces | `ck_enlace_invitacion_desactivado` (`V7`) | Un enlace se desactiva después de crearse | `EsquemaRestriccionesTest` |
-| Dos citas no canceladas del mismo servicio y día no se solapan (que una termine donde empieza la otra sí vale) | Disparador `tr_cita_sin_solape` e índice filtrado `ix_cita_servicio_ocupada` (`V8`); `uq_cita_servicio_inicio` se conserva | La reserva ya lo impide bajo el bloqueo de la fila del servicio | `EsquemaDisparadoresTest` (incluye la carrera de dos conexiones y los traslados y reactivaciones), `ReservaConcurrenteTest`, `UsoConcurrenteEnlaceTest` |
+| Dos citas no canceladas del mismo servicio y día no se solapan (que una termine donde empieza la otra sí vale) | Disparador `tr_cita_sin_solape` e índice filtrado `ix_cita_servicio_ocupada` (`V8`; el disparador se redefine en `V10` para que los cambios sin nuevo horario no tomen bloqueos de rango); `uq_cita_servicio_inicio` se conserva | La reserva ya lo impide bajo el bloqueo de la fila del servicio | `EsquemaDisparadoresTest` (incluye la carrera de dos conexiones, los traslados y reactivaciones, y que atender o cancelar no bloquea las demás citas), `ReservaConcurrenteTest`, `UsoConcurrenteEnlaceTest` |
 | Dos ventanas de disponibilidad del mismo servicio y día no se cruzan (pegadas sí) | Disparador `tr_ventana_sin_cruce` (`V9`) | `Validaciones.mensajeDeVentanasCruzadas`; `ServiciosServicio.guardar` borra todas las ventanas, vacía y las vuelve a insertar para que ningún paso intermedio las cruce | `EsquemaDisparadoresTest` (SQL directo) y `ServiciosControladorTest` (guardados válidos que antes se solapaban un instante y el cruce real, rechazado con el mensaje en español) |
-| La migración no corrige datos: aborta si los hay inválidos | `THROW 50001` en `V7`, `V8` y `V9` | Nunca se arreglan datos de usuario en silencio | `MigracionDatosTest` |
+| La migración no corrige datos: aborta si los hay inválidos | `THROW 50001` en `V7`, `V8` y `V9` (`V10` solo redefine el disparador de citas: no audita ni toca datos) | Nunca se arreglan datos de usuario en silencio | `MigracionDatosTest` |
 
 ### Errores de la base y cómo llegan a la API
 
@@ -267,8 +267,14 @@ aborto se repite, con la siguiente regla violada, hasta que no quede ninguna.
 
 ### Notas operativas
 
-- **Índice filtrado y bloqueos de rango.** `tr_cita_sin_solape` lee solo de `ix_cita_servicio_ocupada` (citas no
-  canceladas por servicio, día e inicio, con `hora_fin` incluida) con `UPDLOCK` y `HOLDLOCK`. El bloqueo de rango
+- **Índice filtrado y bloqueos de rango.** `tr_cita_sin_solape` (versión de `V10`) separa primero las filas que
+  ocupan un horario nuevo (insertadas, movidas de hora, día o servicio, o reactivadas); si no hay ninguna, como al
+  atender, cancelar o editar otros datos de una cita, termina sin leer `cita` y no toma bloqueos de rango. Para las
+  demás busca en `ix_cita_servicio_ocupada` (citas no canceladas por servicio, día e inicio, con `hora_fin`
+  incluida) con `UPDLOCK` y `HOLDLOCK`; solo cuando encuentra una cita que se cruza va a la tabla a comprobar su
+  estado (el índice no lo incluye), y en ese caso la sentencia falla con `50010`. En `V8` la lectura bloqueante se
+  hacía antes de descartar las filas sin cambio, así que atender una cita bloqueaba el rango de las siguientes del
+  servicio y podía interbloquearse con una reserva o un traslado (`409` reintentable). El bloqueo de rango
   puede alcanzar la clave frontera, que a veces es de otro día u otro servicio; una escritura sobre esa clave
   podría esperar un momento (nunca da un resultado incorrecto). Dentro de un mismo servicio, la aplicación toma antes el bloqueo de su fila y
   serializa las reservas. Ante dos escrituras directas que se solapan a la vez, una confirma y la otra recibe
@@ -290,6 +296,14 @@ aborto se repite, con la siguiente regla violada, hasta que no quede ninguna.
   nombre de usuario solo prohíben A-Z ASCII (las tildes y eñes son válidas) y el correo no se valida tan
   estrictamente como en Java. El hash solo comprueba la forma BCrypt, no que corresponda a una contraseña real.
   Tampoco hay regla para los espacios internos de un nombre de usuario.
+- **Donde la base es más estricta que la aplicación.** Un `usuario.nombre`, `usuario.usuario` o `rol.nombre`
+  formado solo por espacios Unicode (p. ej. U+3000, el espacio ideográfico) pasa la validación de entrada, pero
+  `strip()` lo deja vacío: antes de `V7` se guardaba vacío y ahora lo rechaza el `CHECK`, así que la API responde
+  `409 CONFLICTO` en lugar de `400`. Y el `CHECK` de correo (`ck_cliente_correo_forma`, `ck_usuario_correo_forma`)
+  compara `@` y `.` con la intercalación de la base, insensible al ancho, así que cuenta `＠` y `．` de ancho
+  completo como si fueran `@` y `.`: un correo que el regex de Java acepta porque los trata como caracteres
+  normales (p. ej. `a＠b@x.co`) puede rechazarse (`409`). Arreglarlo exige recrear esas
+  restricciones con `COLLATE Latin1_General_BIN2` en una migración nueva.
 
 ## Límites de operación
 
