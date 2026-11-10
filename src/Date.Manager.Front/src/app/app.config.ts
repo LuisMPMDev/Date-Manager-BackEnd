@@ -4,7 +4,7 @@ import { provideRouter, withHashLocation } from '@angular/router';
 
 import { routes } from './app.routes';
 import { AgendaRepo } from './core/agenda-repo';
-import { RELOJ } from './core/errores';
+import { RELOJ } from './core/reloj';
 import { HttpAgendaRepo } from './core/http-agenda-repo';
 import { authInterceptor, errorInterceptor } from './core/interceptores';
 import { SesionService } from './core/sesion';

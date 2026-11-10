@@ -12,6 +12,18 @@ export const CATALOGO_PERMISOS: { id: Permiso; etiqueta: string }[] = [
   { id: 'gestionar_enlaces', etiqueta: 'Gestionar enlaces de invitación' },
 ];
 
+/** Primer segmento de la zona pública del cliente: la ruta es `agendar/:codigo` y no pide sesión. */
+export const SEGMENTO_PUBLICO = 'agendar';
+
+/**
+ * ¿La URL es de la zona pública (sin sesión)? Ahí un token vencido no debe sacar al cliente hacia /login.
+ * Acepta la URL con query o fragmento.
+ */
+export function esRutaPublica(url: string): boolean {
+  const ruta = url.split(/[?#]/)[0];
+  return ruta.startsWith(`/${SEGMENTO_PUBLICO}/`) && ruta.length > SEGMENTO_PUBLICO.length + 2;
+}
+
 /** Una entrada es visible si el rol tiene ALGUNO de sus permisos. */
 export const MENU: { ruta: string; etiqueta: string; permisos: Permiso[] }[] = [
   { ruta: '/panel', etiqueta: 'Panel', permisos: ['ver_panel'] },

@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
-import { RELOJ } from '../../core/errores';
+import { RELOJ } from '../../core/reloj';
 import { Cita, Cliente, Servicio } from '../../core/models';
 import { SesionService } from '../../core/sesion';
 import { MARTA, ROL_ADMIN } from '../../core/sesion.pruebas';

@@ -8,7 +8,7 @@ import { authInterceptor, errorInterceptor } from '../../core/interceptores';
 import { sumarMinutos } from '../../core/horarios';
 import { Servicio } from '../../core/models';
 import { CitaPublica, PublicoApi } from '../../core/publico-api';
-import { RELOJ } from '../../core/errores';
+import { RELOJ } from '../../core/reloj';
 import { SesionService } from '../../core/sesion';
 import { MARTA, ROL_ADMIN } from '../../core/sesion.pruebas';
 import { TokenStore } from '../../core/token-store';

@@ -1,5 +1,5 @@
 import { DestroyRef, inject, Injectable, signal } from '@angular/core';
-import { RELOJ } from './errores';
+import { RELOJ } from './reloj';
 
 export const INTERVALO_AHORA_MS = 60_000;
 

@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { DemoAgendaRepo } from '../../testing/demo-agenda-repo';
-import { RELOJ } from '../../core/errores';
+import { RELOJ } from '../../core/reloj';
 import { ServiciosComponent } from './servicios';
 
 const AHORA = new Date(2026, 10, 9, 8, 0); // lunes 9 de noviembre de 2026, 08:00

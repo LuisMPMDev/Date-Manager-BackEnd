@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { RELOJ } from '../../core/errores';
+import { RELOJ } from '../../core/reloj';
 import { AgendaDiaComponent } from '../../shared/agenda-dia';
 import { aFechaISO, fechaLarga, sumarDias } from '../../shared/formato';
 

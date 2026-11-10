@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { AuthApi } from '../../core/auth-api';
-import { RELOJ } from '../../core/errores';
+import { RELOJ } from '../../core/reloj';
 import { Inicio } from '../../core/inicio';
 import { InicioApi } from '../../core/inicio-api';
 import { INICIO } from '../../core/inicio.pruebas';

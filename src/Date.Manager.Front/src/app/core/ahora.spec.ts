@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { AhoraService } from './ahora';
-import { RELOJ } from './errores';
+import { RELOJ } from './reloj';
 
 describe('AhoraService', () => {
   let hora: Date;

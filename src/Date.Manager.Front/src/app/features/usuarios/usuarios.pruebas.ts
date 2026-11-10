@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { AuthApi } from '../../core/auth-api';
 import { DemoAgendaRepo } from '../../testing/demo-agenda-repo';
-import { RELOJ } from '../../core/errores';
+import { RELOJ } from '../../core/reloj';
 import { Permiso, Usuario } from '../../core/models';
 import { SesionService } from '../../core/sesion';
 import { AuthApiDemo, rolDe } from '../../core/sesion.pruebas';

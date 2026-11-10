@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { RELOJ } from '../../core/errores';
+import { RELOJ } from '../../core/reloj';
 import { Cita, Rol, Servicio } from '../../core/models';
 import { INICIO } from '../../core/inicio.pruebas';
 import { MARTA } from '../../core/sesion.pruebas';

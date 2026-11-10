@@ -1,6 +1,8 @@
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { Location } from '@angular/common';
+import { provideLocationMocks } from '@angular/common/testing';
 import { provideRouter, Router } from '@angular/router';
 import { AuthApi } from './auth-api';
 import { authInterceptor, errorInterceptor } from './interceptores';
@@ -17,16 +19,19 @@ const NO_AUTENTICADO = { codigo: 'NO_AUTENTICADO', mensaje: 'Inicia sesión para
 const VENCIDA = 'Tu sesión venció. Inicia sesión de nuevo.';
 const SIN_USUARIO = 'Tu usuario ya no existe.';
 
-function configurar() {
+/** `ruta`: la URL del navegador al arrancar (antes de que el router termine su primera navegación). */
+function configurar(ruta?: string) {
   sessionStorage.clear();
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
+      provideLocationMocks(),
       provideRouter([]),
       provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
       provideHttpClientTesting(),
     ],
   });
+  if (ruta) TestBed.inject(Location).go(ruta);
   const navegar = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
   return {
     ctrl: TestBed.inject(HttpTestingController),
@@ -89,6 +94,35 @@ describe('SesionService: restaurar al cargar', () => {
     expect(sesion.aviso()).toBe(VENCIDA);
     expect(navegar).toHaveBeenCalledTimes(1);
     expect(navegar).toHaveBeenCalledWith('/login');
+  });
+
+  it('arrancando en /citas con el token vencido manda a /login con el aviso, una sola vez', async () => {
+    const { ctrl, tokens, navegar } = configurar('/citas');
+    tokens.guardar('vencido');
+    const sesion = TestBed.inject(SesionService);
+    ctrl.expectOne(`${API}/auth/yo`).flush(NO_AUTENTICADO, R401);
+    await sesion.listo;
+
+    expect(tokens.leer()).toBeNull();
+    expect(sesion.aviso()).toBe(VENCIDA);
+    expect(navegar).toHaveBeenCalledTimes(1);
+    expect(navegar).toHaveBeenCalledWith('/login');
+  });
+
+  it('arrancando en /agendar/X con el token vencido borra el token pero no saca al cliente de la página pública', async () => {
+    const { ctrl, tokens, navegar } = configurar('/agendar/ABC123');
+    tokens.guardar('vencido');
+    const sesion = TestBed.inject(SesionService);
+    // el router aún no navegó (router.url es '/'): la ruta sale de la URL del navegador
+    expect(TestBed.inject(Router).url).toBe('/');
+    ctrl.expectOne(`${API}/auth/yo`).flush(NO_AUTENTICADO, R401);
+    await sesion.listo;
+
+    expect(tokens.leer()).toBeNull();
+    expect(sessionStorage.getItem(CLAVE_TOKEN)).toBeNull();
+    expect(sesion.usuario()).toBeNull();
+    expect(navegar).not.toHaveBeenCalled();
+    expect(TestBed.inject(Location).path()).toBe('/agendar/ABC123');
   });
 
   it('un fallo de red al restaurar deja sin sesión pero conserva el token para reintentar', async () => {
@@ -236,6 +270,18 @@ describe('SesionService: sesión vencida a mitad de una llamada', () => {
     ctrl.expectOne(`${API}/panel/citas`).flush(NO_AUTENTICADO, R401);
     expect(navegar).toHaveBeenCalledTimes(2);
     expect(sesion.aviso()).toBe(VENCIDA);
+  });
+
+  it('un 401 en una llamada del panel estando en /citas expulsa a /login como siempre', async () => {
+    const { ctrl, http, tokens, navegar } = configurar('/citas');
+    const sesion = await entrarComoMarta(ctrl);
+    http.get(`${API}/panel/citas`).subscribe({ error: () => undefined });
+    ctrl.expectOne(`${API}/panel/citas`).flush(NO_AUTENTICADO, R401);
+
+    expect(sesion.usuario()).toBeNull();
+    expect(tokens.leer()).toBeNull();
+    expect(navegar).toHaveBeenCalledTimes(1);
+    expect(navegar).toHaveBeenCalledWith('/login');
   });
 
   it('un 403 no cierra la sesión', async () => {

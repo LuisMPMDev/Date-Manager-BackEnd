@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AgendaRepo } from '../core/agenda-repo';
 import { DemoAgendaRepo } from '../testing/demo-agenda-repo';
-import { RELOJ } from '../core/errores';
+import { RELOJ } from '../core/reloj';
 import { AgendaDiaComponent } from './agenda-dia';
 
 const LUNES = '2026-11-09';

@@ -1,9 +1,10 @@
+import { Location } from '@angular/common';
 import { DestroyRef, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ApiError } from './api-error';
 import { AuthApi, SesionActual } from './auth-api';
 import { Permiso, Rol, Usuario } from './models';
-import { puede } from './permisos';
+import { esRutaPublica, puede } from './permisos';
 import { SesionExpirada } from './sesion-expirada';
 import { TokenStore } from './token-store';
 
@@ -19,6 +20,7 @@ export class SesionService {
   private readonly auth = inject(AuthApi);
   private readonly tokens = inject(TokenStore);
   private readonly router = inject(Router);
+  private readonly ubicacion = inject(Location);
 
   private readonly _usuario = signal<Usuario | null>(null);
   private readonly _rol = signal<Rol | undefined>(undefined);
@@ -102,10 +104,14 @@ export class SesionService {
     this._rol.set(undefined);
   }
 
-  /** Cierre forzado: limpia, explica el motivo y manda a /login (una sola vez por vencimiento). */
+  /**
+   * Cierre forzado: limpia y explica el motivo; manda a /login (una sola vez por vencimiento) salvo en la zona
+   * pública, donde el cliente no necesita sesión y no se le debe sacar de su página. La ruta sale de la URL del
+   * navegador y no de `router.url`: al arrancar el router aún no terminó su primera navegación y diría «/».
+   */
   private vencer(motivo: string): void {
     this.vaciar();
     this._aviso.set(motivo);
-    void this.router.navigateByUrl('/login');
+    if (!esRutaPublica(this.ubicacion.path())) void this.router.navigateByUrl('/login');
   }
 }

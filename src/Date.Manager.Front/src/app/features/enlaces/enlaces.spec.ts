@@ -292,12 +292,12 @@ describe('EnlacesComponent', () => {
       expect(boton(el, 'Crear enlace')!.disabled).toBe(false);
     });
 
-    it('un 403 al crear muestra el aviso de sin permiso', async () => {
+    it('un 403 al crear muestra el texto de la API, no el aviso de lectura', async () => {
       api().alCrear = () => Promise.reject(new ApiError(403, 'SIN_PERMISO', 'No tienes permiso para esta acción.'));
       const { fixture, el } = await crear();
       boton(el, 'Crear enlace')!.click();
       await esperar(fixture);
-      expect(alertas(el)).toEqual([SIN_PERMISO]);
+      expect(alertas(el)).toEqual(['No tienes permiso para esta acción.']);
     });
 
     it('un nuevo intento limpia el error anterior', async () => {
@@ -546,6 +546,16 @@ describe('EnlacesComponent', () => {
       await esperar(fixture);
       expect(alertas(el)).toEqual(['El enlace ya no existe.']);
       expect(filas(el)).toHaveLength(1);
+    });
+
+    it('un 403 al desactivar muestra el texto de la API, no el aviso de lectura', async () => {
+      api().alDesactivar = () => Promise.reject(new ApiError(403, 'SIN_PERMISO', 'No tienes permiso para esta acción.'));
+      const { fixture, el } = await crear();
+      boton(filas(el)[0], 'Desactivar')!.click();
+      fixture.detectChanges();
+      boton(filas(el)[0], 'Sí, desactivar')!.click();
+      await esperar(fixture);
+      expect(alertas(el)).toEqual(['No tienes permiso para esta acción.']);
     });
   });
 });

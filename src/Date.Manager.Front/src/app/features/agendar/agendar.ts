@@ -7,7 +7,7 @@ import { aHHmm, isoDia, MAX_DIAS_ANTICIPACION, sumarMinutos } from '../../core/h
 import { Servicio } from '../../core/models';
 import { CitaPublica, PublicoApi } from '../../core/publico-api';
 import { esCorreoValido } from '../../core/validaciones';
-import { camposDe, mensajeDe } from '../../shared/errores';
+import { errorDeFormulario, mensajeDe } from '../../shared/errores';
 import { aFechaISO, fechaLarga, moneda, sumarDias } from '../../shared/formato';
 import { construirRegla } from '../../shared/regla-bloques';
 import { ReglaTiempoComponent } from '../../shared/regla-tiempo';
@@ -283,18 +283,11 @@ export class AgendarComponent implements OnInit {
       await this.cargarLibres();
       return;
     }
-    const delFormulario: Partial<Record<Campo, string>> = {};
-    const ajenos: string[] = [];
-    for (const [clave, texto] of Object.entries(camposDe(e))) {
-      const campo = CAMPOS.find(c => c.campo === clave);
-      if (campo) delFormulario[campo.campo] = texto;
-      else ajenos.push(texto);
-    }
-    this.erroresApi.set(delFormulario);
-    const primero = CAMPOS.find(c => delFormulario[c.campo]);
+    const { campos, general } = errorDeFormulario(e, CAMPOS.map(c => c.campo), NO_RESERVO);
+    this.erroresApi.set(campos);
+    const primero = CAMPOS.find(c => campos[c.campo]);
     if (primero) this.enfocarCampo(primero.campo);
-    // Sin campos del formulario (o con claves que no son suyas) el mensaje va como error general.
-    this.error.set(ajenos.length ? ajenos.join(' ') : primero ? '' : mensajeDe(e, NO_RESERVO));
+    this.error.set(general);
   }
 
   /** El enlace ya no sirve: se cierra el flujo y el título del mensaje recibe el foco. */

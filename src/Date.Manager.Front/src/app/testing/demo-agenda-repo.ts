@@ -1,6 +1,6 @@
 import { DestroyRef, inject, Injectable, signal } from '@angular/core';
 import { AgendaRepo, DatosCliente } from '../core/agenda-repo';
-import { RELOJ } from '../core/errores';
+import { RELOJ } from '../core/reloj';
 import { aFechaISO } from '../core/fechas';
 import { nuevoId } from '../core/ids';
 import { horariosLibres, sumarMinutos } from '../core/horarios';

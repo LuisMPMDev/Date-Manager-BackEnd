@@ -52,7 +52,7 @@ Los ids de lo que se crea en pantalla (servicios, ventanas, roles, usuarios, cli
 | `marta`  | `demo123` | Administrador | Todo                                     |
 | `andres` | `demo123` | Recepción     | Citas y clientes                         |
 
-Son cuentas de la base de desarrollo local; la autenticación es real (la API firma un token). El token vive en `sessionStorage` (clave `datemanager.sesion.v2`), vence a los 60 minutos y se borra al cerrar la pestaña; la contraseña nunca se guarda. Si el token falta o es inválido, vuelves a `#/login` con el aviso «Tu sesión venció».
+Son cuentas de la base de desarrollo local; la autenticación es real (la API firma un token). El token vive en `sessionStorage` (clave `datemanager.sesion.v2`), vence a los 60 minutos y se borra al cerrar la pestaña; la contraseña nunca se guarda. Si el token vence o es inválido (la API responde 401), vuelves a `#/login` con el aviso «Tu sesión venció»; `#/agendar/:codigo` sigue funcionando aunque haya un token vencido (se descarta el token y el cliente se queda en su página).
 
 ## Rutas
 

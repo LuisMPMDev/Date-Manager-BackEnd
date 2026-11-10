@@ -2,7 +2,7 @@ import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, 
 import { Router } from '@angular/router';
 import { AgendaRepo } from '../../core/agenda-repo';
 import { AhoraService } from '../../core/ahora';
-import { RELOJ } from '../../core/errores';
+import { RELOJ } from '../../core/reloj';
 import { aHHmm } from '../../core/horarios';
 import { Cita, Cliente, Servicio } from '../../core/models';
 import { SesionService } from '../../core/sesion';

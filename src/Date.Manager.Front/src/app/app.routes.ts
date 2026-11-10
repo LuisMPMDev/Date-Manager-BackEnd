@@ -1,12 +1,13 @@
 import { Routes } from '@angular/router';
 import { conPermiso, conSesion, sinSesion } from './core/guards';
+import { SEGMENTO_PUBLICO } from './core/permisos';
 import { PanelShell } from './layout/panel-shell';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'login' },
   // Zona del cliente: pública, sin guardias; entra solo con el código de un enlace de invitación.
   {
-    path: 'agendar/:codigo',
+    path: `${SEGMENTO_PUBLICO}/:codigo`,
     loadComponent: () => import('./features/agendar/agendar').then(m => m.AgendarComponent),
   },
   {

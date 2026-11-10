@@ -1,6 +1,6 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, Injector, signal } from '@angular/core';
 import { Enlace, EnlacesApi, PeticionEnlace } from '../../core/enlaces-api';
-import { mensajeDe } from '../../shared/errores';
+import { mensajeAccion, mensajeDe } from '../../shared/errores';
 import { fechaHora } from './enlaces-formato';
 
 const DURACION_MIN = 60;
@@ -107,7 +107,7 @@ export class EnlacesComponent {
       this.maxUsos.set('');
       await this.cargar();
     } catch (e) {
-      this.errorForm.set(mensajeDe(e, NO_CREO));
+      this.errorForm.set(mensajeAccion(e, NO_CREO));
     } finally {
       this.creando.set(false);
     }
@@ -155,7 +155,7 @@ export class EnlacesComponent {
       await this.cargar();
     } catch (e) {
       this.confirmando.set(null);
-      this.errorLista.set(mensajeDe(e, NO_DESACTIVO));
+      this.errorLista.set(mensajeAccion(e, NO_DESACTIVO));
     } finally {
       this.desactivando.set(false);
       // La confirmación desaparece con el botón enfocado: el foco pasa al encabezado de la lista.

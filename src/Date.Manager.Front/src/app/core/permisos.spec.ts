@@ -1,5 +1,5 @@
 import { Rol, Usuario } from './models';
-import { CATALOGO_PERMISOS, conDependencias, MENU, primeraRuta, puedeEliminarRol, puede, validarCambioRol } from './permisos';
+import { CATALOGO_PERMISOS, conDependencias, MENU, esRutaPublica, primeraRuta, puedeEliminarRol, puede, validarCambioRol } from './permisos';
 
 function rol(parcial: Partial<Rol> = {}): Rol {
   return { id: 'r1', nombre: 'Rol', descripcion: '', permisos: [], ...parcial };
@@ -89,5 +89,19 @@ describe('permisos', () => {
 
   it('puedeEliminarRol es true si nadie lo usa', () => {
     expect(puedeEliminarRol('r2', [usuario({ rolId: 'r1' })])).toBe(true);
+  });
+});
+
+describe('esRutaPublica', () => {
+  it('la zona del cliente (/agendar/<código>) es pública, con o sin query o fragmento', () => {
+    expect(esRutaPublica('/agendar/ABC123')).toBe(true);
+    expect(esRutaPublica('/agendar/ABC123?x=1')).toBe(true);
+    expect(esRutaPublica('/agendar/ABC123#paso')).toBe(true);
+  });
+
+  it('el panel, el login y cualquier otra ruta no lo son', () => {
+    for (const url of ['', '/', '/login', '/citas', '/panel', '/agendar', '/agendar/', '/agendarX/1', '/citas/agendar/1']) {
+      expect(esRutaPublica(url), url).toBe(false);
+    }
   });
 });

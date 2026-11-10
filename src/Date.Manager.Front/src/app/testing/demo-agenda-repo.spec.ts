@@ -2,7 +2,7 @@ import { createEnvironmentInjector, EnvironmentInjector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { AgendaRepo, DatosCliente } from '../core/agenda-repo';
 import { DemoAgendaRepo } from './demo-agenda-repo';
-import { RELOJ } from '../core/errores';
+import { RELOJ } from '../core/reloj';
 import { HorarioNoDisponibleError, RolEnUsoError } from './errores-demo';
 import { horariosLibres, sumarMinutos } from '../core/horarios';
 import { Servicio } from '../core/models';
