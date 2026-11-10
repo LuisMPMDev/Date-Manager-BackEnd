@@ -249,7 +249,7 @@ los datos ya guardados.
 | Número | Origen | Resultado en la API |
 | --- | --- | --- |
 | `50001` | Aborto de la migración (`V7`, `V8`, `V9`) por datos que violan una regla | La API no arranca; el mensaje dice la regla, la tabla y hasta 5 ids |
-| `50010` | `tr_cita_sin_solape`: cita solapada | Al reservar, `409 HORARIO_NO_DISPONIBLE`; en otras rutas, `409 CONFLICTO` |
+| `50010` | `tr_cita_sin_solape`: cita solapada | Al reservar o mover una cita, `409 HORARIO_NO_DISPONIBLE`; en otras rutas, `409 CONFLICTO` |
 | `50020` | `tr_ventana_sin_cruce`: ventanas cruzadas | `409 CONFLICTO` |
 
 Un `CHECK` o un índice único violado llega como `409 CONFLICTO`. Los mensajes hacia la API nunca llevan valores de
@@ -270,16 +270,16 @@ aborto se repite, con la siguiente regla violada, hasta que no quede ninguna.
 - **Índice filtrado y bloqueos de rango.** `tr_cita_sin_solape` lee solo de `ix_cita_servicio_ocupada` (citas no
   canceladas por servicio, día e inicio, con `hora_fin` incluida) con `UPDLOCK` y `HOLDLOCK`. El bloqueo de rango
   puede alcanzar la clave frontera, que a veces es de otro día u otro servicio; una escritura sobre esa clave
-  podría esperar. No tiene efecto práctico: la aplicación toma antes el bloqueo de la fila del servicio y
+  podría esperar un momento (nunca da un resultado incorrecto). Dentro de un mismo servicio, la aplicación toma antes el bloqueo de su fila y
   serializa las reservas. Ante dos escrituras directas que se solapan a la vez, una confirma y la otra recibe
-  `50010` o es la víctima de un interbloqueo (error 1205); basta reintentarla.
+  `50010` o es la víctima de un interbloqueo (error 1205, que la API devuelve como `409 CONFLICTO`); basta reintentarla.
 - **`tr_ventana_sin_cruce` y el aislamiento.** Su lectura no lleva sugerencias de bloqueo: ante escrituras
   directas simultáneas se apoya en que la base **no** tenga `READ_COMMITTED_SNAPSHOT` activo (con él, una
   transacción no ve ni espera las filas aún sin confirmar de la otra y podrían ganar las dos). Azure SQL lo
   activa por defecto. Se comprueba con `SELECT is_read_committed_snapshot_on FROM sys.databases WHERE name =
   DB_NAME()`. Si está activo, añade `WITH (UPDLOCK, HOLDLOCK)` a la lectura de `ventana_disponibilidad` del
   disparador en una migración nueva (no se edita `V9`: Flyway valida su checksum). La API no se ve afectada porque
-  `ServiciosServicio.guardar` reemplaza las ventanas de un servicio dentro de una sola transacción.
+  `ServiciosServicio.guardar` toma el bloqueo de la fila del servicio y reemplaza sus ventanas en una sola transacción, así que dos guardados del mismo servicio se serializan.
 - **Reloj del servidor atrasado.** Si el reloj retrocede (p. ej. un ajuste NTP hacia atrás) y queda antes del
   instante en que se creó una cita o un enlace, cancelar la cita o desactivar el enlace da `409 CONFLICTO` por
   `ck_cita_cancelada_posterior` / `ck_enlace_invitacion_desactivado`. Se resuelve solo cuando el reloj alcanza
