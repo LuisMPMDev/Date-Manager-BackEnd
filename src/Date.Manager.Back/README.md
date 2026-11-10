@@ -2,7 +2,8 @@
 
 API REST (Java 21, Spring Boot 3.5, SQL Server) que reemplaza el almacén local de la demo Angular: login real,
 permisos verificados en el servidor, reservas sin doble agendamiento y enlaces de invitación para que los clientes
-agenden sin cuenta.
+agenden sin cuenta. El cliente Angular de `src/Date.Manager.Front` ya la consume (ver su README para arrancarlo
+contra esta API).
 
 El diseño completo está en `docs/superpowers/specs/2026-11-08-date-manager-api-java-design.md`.
 
