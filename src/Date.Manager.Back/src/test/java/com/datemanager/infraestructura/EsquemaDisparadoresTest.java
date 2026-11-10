@@ -7,7 +7,9 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +31,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 /**
  * Disparador {@code tr_cita_sin_solape} (V8): dos citas no canceladas del mismo servicio y día no pueden solaparse.
  * SQL directo (la aplicación valida antes, así que aquí se ejerce la última defensa), más una prueba de carrera con
- * dos conexiones propias que insertan a la vez citas solapadas: nunca pueden ganar las dos.
+ * dos conexiones propias que insertan a la vez citas solapadas: nunca pueden ganar las dos; y otra de dos conexiones
+ * que comprueba que atender o cancelar no bloquea las demás citas del servicio (V10).
  * También {@code tr_ventana_sin_cruce} (V9): dos ventanas de disponibilidad del mismo servicio y día no pueden
  * cruzarse.
  */
@@ -414,6 +417,72 @@ class EsquemaDisparadoresTest extends PruebaIntegracion {
             }
         } finally {
             hilos.shutdownNow();
+        }
+    }
+
+    /**
+     * Atender o cancelar una cita (un UPDATE que no cambia su horario) no toma bloqueos de rango sobre las demás citas
+     * del servicio y día: la conexión 1 deja sin confirmar ese UPDATE sobre la cita de las 10:00 y la conexión 2 lee
+     * la de las 12:00 con UPDLOCK por el índice filtrado (como la lectura del disparador en una reserva o un traslado)
+     * con un plazo de bloqueo corto; no debe esperar (error 1222). Y la regla sigue rigiendo para mover e insertar.
+     */
+    @Test
+    void atenderOCancelarUnaCitaNoBloqueaLasDemasDelServicio() throws Exception {
+        UUID servicio = preparar();
+        UUID a = cita(servicio, "10:00", "11:00");
+        UUID b = cita(servicio, "12:00", "13:00");
+
+        assertThat(leerLaDeLas12Mientras("UPDATE cita SET estado = 'Atendida' WHERE id = ?", a, servicio))
+                .as("atender la de las 10:00 no bloquea la de las 12:00 (código de error)").isNull();
+        assertThat(leerLaDeLas12Mientras("UPDATE cita SET estado = 'Cancelada', cancelada_en = "
+                + "'2030-01-01 09:00:00' WHERE id = ?", a, servicio))
+                .as("cancelar la de las 10:00 no bloquea la de las 12:00 (código de error)").isNull();
+
+        // Las dos actualizaciones se revirtieron: la de las 10:00 sigue ocupando su horario.
+        afirmarSolape(() -> jdbc.update("UPDATE cita SET hora_inicio = '10:30', hora_fin = '11:30' WHERE id = ?", b));
+        afirmarSolape(() -> cita(servicio, "12:30", "13:30"));
+    }
+
+    /**
+     * Con la conexión 1 dejando sin confirmar {@code actualizacion} sobre {@code cita}, la conexión 2 lee con UPDLOCK
+     * la cita de las 12:00 del servicio. Devuelve {@code null} si la leyó sin esperar, o el código del error de SQL
+     * Server (1222 si un bloqueo de la conexión 1 la detuvo). Ambas transacciones se revierten.
+     */
+    private Integer leerLaDeLas12Mientras(String actualizacion, UUID cita, UUID servicio) throws SQLException {
+        try (Connection escritora = fuente.getConnection(); Connection lectora = fuente.getConnection()) {
+            escritora.setAutoCommit(false);
+            try {
+                try (PreparedStatement actualizar = escritora.prepareStatement(actualizacion)) {
+                    actualizar.setObject(1, cita);
+                    assertThat(actualizar.executeUpdate()).isEqualTo(1);
+                }
+                lectora.setAutoCommit(false);
+                try (Statement plazo = lectora.createStatement()) {
+                    plazo.execute("SET LOCK_TIMEOUT 2000");
+                }
+                try (PreparedStatement leer = lectora.prepareStatement("SELECT id FROM cita WITH (UPDLOCK, "
+                        + "INDEX (ix_cita_servicio_ocupada), FORCESEEK) WHERE servicio_id = ? AND fecha = ? "
+                        + "AND hora_inicio = '12:00' AND estado <> 'Cancelada'")) {
+                    leer.setObject(1, servicio);
+                    leer.setString(2, FECHA);
+                    try (ResultSet filas = leer.executeQuery()) {
+                        assertThat(filas.next()).isTrue();
+                    }
+                    return null;
+                } catch (SQLException e) {
+                    return e.getErrorCode();
+                } finally {
+                    lectora.rollback();
+                    lectora.setAutoCommit(true);
+                    // La conexión vuelve al grupo: sin plazo, como las demás.
+                    try (Statement plazo = lectora.createStatement()) {
+                        plazo.execute("SET LOCK_TIMEOUT -1");
+                    }
+                }
+            } finally {
+                escritora.rollback();
+                escritora.setAutoCommit(true);
+            }
         }
     }
 
