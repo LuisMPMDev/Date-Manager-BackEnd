@@ -166,7 +166,8 @@ class InicioControladorTest extends PruebaPanel {
         UUID a = lunesDeOchoADoce("Servicio A");
         UUID clienteNuevo = crearCliente("Luis", "Gómez", "310 555 22");
         confirmada(a, "2026-11-12", "09:00", "10:00");
-        confirmada(a, "2026-11-09", "07:30", "08:30"); // ya empezó
+        // ya empezó y sigue en curso (en otro servicio: en el mismo se solaparía con la de las 08:00)
+        confirmada(lunesDeOchoADoce("Servicio B"), "2026-11-09", "07:30", "08:30");
         cita(a, "2026-11-09", "09:00", "10:00", "Atendida");
         UUID diez = confirmada(a, "2026-11-09", "10:00", "11:00");
         cita(a, "2026-11-10", "09:00", "10:00", "Cancelada");

@@ -5,6 +5,7 @@ import java.util.Map;
 
 import com.datemanager.dominio.CodigoError;
 import com.datemanager.dominio.ErrorNegocio;
+import com.datemanager.infraestructura.persistencia.ErroresBase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -100,8 +101,17 @@ public class ManejadorErrores extends ResponseEntityExceptionHandler {
         return respuesta(CodigoError.NO_AUTENTICADO, RespuestasSeguridad.MENSAJE_NO_AUTENTICADO, null);
     }
 
+    /**
+     * Cualquier otra excepción es un 500 sin detalles, salvo el rechazo de un disparador de la base (THROW
+     * 50000–50099): Spring no lo reconoce como violación de integridad y puede llegar envuelto en cualquier
+     * excepción, así que se reconoce aquí y se trata igual que una restricción (409, sin el mensaje de la base).
+     */
     @ExceptionHandler(Exception.class)
     ResponseEntity<Object> inesperado(Exception e) {
+        if (ErroresBase.esViolacionDeDisparador(e)) {
+            LOG.warn("Un disparador de la base rechazó la escritura: {}", e.getClass().getSimpleName());
+            return violacionDeRestriccion(null);
+        }
         LOG.error("Error inesperado", e);
         return respuesta(CodigoError.ERROR_INTERNO, MENSAJE_INESPERADO, null);
     }

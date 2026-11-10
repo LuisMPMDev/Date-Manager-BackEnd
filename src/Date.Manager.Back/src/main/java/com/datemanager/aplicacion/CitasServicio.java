@@ -20,6 +20,7 @@ import com.datemanager.dominio.Servicio;
 import com.datemanager.dominio.TransicionesCita;
 import com.datemanager.infraestructura.persistencia.CitaEntidad;
 import com.datemanager.infraestructura.persistencia.CitaRepositorio;
+import com.datemanager.infraestructura.persistencia.ErroresBase;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -133,12 +134,20 @@ public class CitasServicio {
         return Horarios.horariosLibres(servicio, fecha, delDia, LocalDateTime.now(reloj), excluirCitaId);
     }
 
-    /** Escribe ya (no al confirmar) para traducir aquí el choque con el índice único filtrado. */
+    /**
+     * Escribe ya (no al confirmar) para traducir aquí el choque con el índice único filtrado o con el disparador de
+     * citas solapadas (tr_cita_sin_solape, que llega como otro tipo de excepción).
+     */
     private Cita guardar(CitaEntidad entidad) {
         try {
             return citas.saveAndFlush(entidad).aDominio();
         } catch (DataIntegrityViolationException e) {
             throw new ErrorNegocio(CodigoError.HORARIO_NO_DISPONIBLE, MENSAJE_NO_DISPONIBLE);
+        } catch (RuntimeException e) {
+            if (ErroresBase.esViolacionDeDisparador(e)) {
+                throw new ErrorNegocio(CodigoError.HORARIO_NO_DISPONIBLE, MENSAJE_NO_DISPONIBLE);
+            }
+            throw e;
         }
     }
 
