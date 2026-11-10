@@ -24,7 +24,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 
 /**
- * Criterio 2 del diseño: el recorrido completo de punta a punta con peticiones HTTP reales (solo el reloj es falso):
+ * El recorrido completo de punta a punta con peticiones HTTP reales (solo el reloj es falso):
  * una administradora entra, crea un enlace de 24 h con 1 uso, el cliente (sin token) ve servicios y horarios y
  * reserva, la cita aparece en el panel, el enlace ya no admite otra reserva y, al cancelar la cita, el horario
  * vuelve a quedar libre.
