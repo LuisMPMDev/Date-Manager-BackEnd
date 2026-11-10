@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -46,11 +47,33 @@ class MigracionDatosTest {
     private record Base(UUID rol, UUID usuario, UUID servicio, UUID cliente) {
     }
 
+    /**
+     * Deja la base en la última versión para las demás pruebas. Pasa por la guarda de {@link #limpiar}; si algo falla
+     * lo dice con un mensaje propio (el fallo se suma al resultado de las pruebas, no lo oculta) y, si la guarda se
+     * niega, no se migra nada: nunca se aplican migraciones a una base que no es de pruebas.
+     */
     @AfterAll
     static void restaurarEsquemaMasReciente() {
         Flyway flyway = flyway(null);
-        flyway.clean();
-        flyway.migrate();
+        try {
+            limpiar(flyway);
+            flyway.migrate();
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("No se pudo restaurar el esquema más reciente de la base de pruebas; "
+                    + "las demás pruebas pueden fallar hasta que se vuelva a migrar.", e);
+        }
+    }
+
+    @Test
+    void laGuardaSeNiegaAUnaBaseSinElSufijoTestYNoLimpiaNada() {
+        AtomicBoolean limpio = new AtomicBoolean();
+
+        Throwable error = catchThrowable(() -> limpiarSiEsBaseDePrueba("DateManager", () -> limpio.set(true)));
+
+        assertThat(error).isInstanceOf(IllegalStateException.class).hasMessageContaining("DateManager");
+        assertThat(limpio).as("no se llegó a limpiar").isFalse();
+        limpiarSiEsBaseDePrueba("DateManagerTest", () -> limpio.set(true));
+        assertThat(limpio).as("con el sufijo Test sí se limpia").isTrue();
     }
 
     // ---------------------------------------------------------------- Migración con datos válidos
@@ -87,6 +110,8 @@ class MigracionDatosTest {
     static Stream<Arguments> datosQueViolanV7() {
         return Stream.of(
                 caso("ck_cliente_nombre_no_vacio", (b) -> insertarCliente("  ", "Gómez", "300", "x@x.co")),
+                caso("ck_cliente_apellido_no_vacio", (b) -> insertarCliente("Ana", "", "300", "otra@x.co")),
+                caso("ck_cliente_telefono_no_vacio", (b) -> insertarCliente("Ana", "Pérez", "  ", "otra@x.co")),
                 caso("ck_cliente_correo_forma", (b) -> insertarCliente("Ana", "Pérez", "300", "Otra@X.co")),
                 caso("ck_cliente_correo_forma", (b) -> insertarCliente("Ana", "Pérez", "300", "otra@@x.co")),
                 caso("ck_cita_cancelada_coherente", (b) -> JDBC.update("INSERT INTO cita (id, servicio_id, cliente_id, "
@@ -99,6 +124,14 @@ class MigracionDatosTest {
                         + "'2030-01-01 08:00:00')", UUID.randomUUID(), b.servicio(), b.cliente())),
                 caso("ck_usuario_clave_hash_bcrypt", (b) -> insertarUsuario(b.rol(), "luis", "texto plano")),
                 caso("ck_usuario_usuario_forma", (b) -> insertarUsuario(b.rol(), "Luis", HASH)),
+                caso("ck_usuario_nombre_no_vacio", (b) -> insertarUsuario(UUID.randomUUID(), b.rol(), "  ",
+                        "luis@x.co", "luis", HASH)),
+                caso("ck_usuario_correo_forma", (b) -> insertarUsuario(UUID.randomUUID(), b.rol(), "Luis",
+                        "luis@@x.co", "luis", HASH)),
+                caso("ck_servicio_nombre_no_vacio", (b) -> JDBC.update("INSERT INTO servicio (id, nombre, "
+                        + "duracion_min, activo, valor) VALUES (?, '  ', 30, 1, 0)", UUID.randomUUID())),
+                caso("ck_rol_nombre_no_vacio", (b) -> JDBC.update("INSERT INTO rol (id, nombre, descripcion) "
+                        + "VALUES (?, '  ', 'Sin nombre')", UUID.randomUUID())),
                 caso("ck_servicio_duracion_max", (b) -> JDBC.update("INSERT INTO servicio (id, nombre, duracion_min, "
                         + "activo, valor) VALUES (?, 'Largo', 1441, 1, 0)", UUID.randomUUID())),
                 caso("ck_enlace_invitacion_desactivado", (b) -> JDBC.update("INSERT INTO enlace_invitacion (id, "
@@ -163,6 +196,7 @@ class MigracionDatosTest {
 
         assertThat(error).as("la migración debía abortar").isInstanceOf(FlywayException.class);
         assertThat(error.getMessage()).contains(aborto, motivo, "No se modificó ningún dato");
+        assertThat(codigoSql(error)).as("THROW 50001 de la auditoría").isEqualTo(50001);
         assertThat(versionActual(flyway)).as("la base sigue en su versión").isEqualTo(versionPrevia);
         assertThat(JDBC.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 0", Integer.class))
                 .as("el intento fallido no deja registro").isZero();
@@ -183,12 +217,24 @@ class MigracionDatosTest {
         return configuracion.load();
     }
 
-    /** Verifica que la base es de pruebas, la limpia y migra hasta {@code version}. */
+    /**
+     * Único camino a {@code clean()} de esta clase: antes comprueba que la conexión apunta a una base cuyo nombre
+     * termina en «Test» y, si no, lanza {@link IllegalStateException} sin limpiar nada.
+     */
+    private static void limpiar(Flyway flyway) {
+        limpiarSiEsBaseDePrueba(JDBC.queryForObject("SELECT DB_NAME()", String.class), flyway::clean);
+    }
+
+    /** La guarda de {@link #limpiar}, separada para poder probarla con un nombre de base ajeno sin limpiar nada. */
+    private static void limpiarSiEsBaseDePrueba(String nombreDeLaBase, Runnable limpieza) {
+        LimpiezaBasePruebaConfig.exigirBaseDePrueba(nombreDeLaBase);
+        limpieza.run();
+    }
+
+    /** Limpia la base de pruebas (con la guarda) y migra hasta {@code version}. */
     private static Flyway prepararHasta(String version) {
-        String base = JDBC.queryForObject("SELECT DB_NAME()", String.class);
-        LimpiezaBasePruebaConfig.exigirBaseDePrueba(base);
         Flyway flyway = flyway(null);
-        flyway.clean();
+        limpiar(flyway);
         flyway(version).migrate();
         return flyway;
     }
@@ -294,8 +340,13 @@ class MigracionDatosTest {
     }
 
     private static void insertarUsuario(UUID id, UUID rol, String usuario, String claveHash) {
+        insertarUsuario(id, rol, "Marta", "marta@x.co", usuario, claveHash);
+    }
+
+    private static void insertarUsuario(UUID id, UUID rol, String nombre, String correo, String usuario,
+            String claveHash) {
         JDBC.update("INSERT INTO usuario (id, nombre, apellido, correo, telefono, usuario, clave_hash, rol_id) "
-                + "VALUES (?, 'Marta', 'Ruiz', 'marta@x.co', '300', ?, ?, ?)", id, usuario, claveHash, rol);
+                + "VALUES (?, ?, 'Ruiz', ?, '300', ?, ?, ?)", id, nombre, correo, usuario, claveHash, rol);
     }
 
     private static void insertarVentana(UUID servicio, int dia, String inicio, String fin) {
