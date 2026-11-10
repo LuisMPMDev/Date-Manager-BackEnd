@@ -223,6 +223,74 @@ Todo error es JSON (problem details) con las propiedades `codigo` y `mensaje` (e
 | `ENLACE_VENCIDO`, `ENLACE_AGOTADO`, `ENLACE_DESACTIVADO` | 410 |
 | `ERROR_INTERNO` | 500 (mensaje genérico, sin detalles) |
 
+## Reglas en la base de datos
+
+Desde las migraciones `V7`–`V9` la base rechaza por sí misma lo que la aplicación ya valida antes de guardar. Es
+la última defensa ante escrituras directas (SQL a mano, otro cliente) y ante carreras; el flujo normal de la API
+no debería llegar a ellas. Todas las restricciones se crean validadas (`WITH CHECK`), así que valen también para
+los datos ya guardados.
+
+| Regla | Restricción / disparador | Regla de la aplicación que respalda | Cómo se prueba |
+| --- | --- | --- | --- |
+| `cancelada_en` tiene valor si y solo si la cita está `Cancelada` | `ck_cita_cancelada_coherente` (`V7`) | Cancelar una cita fija la fecha de cancelación; ningún otro estado la lleva | `EsquemaRestriccionesTest` |
+| `cancelada_en >= creada_en` | `ck_cita_cancelada_posterior` (`V7`) | La cancelación es posterior a la creación | `EsquemaRestriccionesTest` |
+| `nombre`, `apellido` y `telefono` de cliente, `nombre` de usuario, de servicio y de rol: no vacíos ni solo espacios | `ck_cliente_nombre_no_vacio`, `ck_cliente_apellido_no_vacio`, `ck_cliente_telefono_no_vacio`, `ck_usuario_nombre_no_vacio`, `ck_servicio_nombre_no_vacio`, `ck_rol_nombre_no_vacio` (`V7`) | `@NotBlank` y recorte de espacios de la capa de aplicación | `EsquemaRestriccionesTest` |
+| Correo de cliente y de usuario: una sola `@`, un punto en el dominio, sin espacios y sin letras A-Z ASCII (en usuario se admite vacío: el administrador inicial se crea sin correo) | `ck_cliente_correo_forma`, `ck_usuario_correo_forma` (`V7`) | La aplicación guarda el correo recortado y en minúsculas, con la forma `^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$` (la de SQL es algo más laxa, nunca más estricta) | `EsquemaRestriccionesTest` |
+| Nombre de usuario (`usuario.usuario`): no vacío, sin espacios en los extremos y sin A-Z ASCII | `ck_usuario_usuario_forma` (`V7`) | La aplicación recorta y pasa a minúsculas | `EsquemaRestriccionesTest` |
+| `clave_hash` tiene forma de hash BCrypt (`$2a$`/`$2b$`/`$2y$`, dos dígitos de costo y 53 caracteres, 60 en total) | `ck_usuario_clave_hash_bcrypt` (`V7`) | Nunca se guarda la contraseña, solo el hash del codificador | `EsquemaRestriccionesTest` |
+| `servicio.duracion_min <= 1440` | `ck_servicio_duracion_max` (`V7`) | `Validaciones.MAX_DURACION_MIN` | `EsquemaRestriccionesTest` |
+| `desactivado_en >= creado_en` en los enlaces | `ck_enlace_invitacion_desactivado` (`V7`) | Un enlace se desactiva después de crearse | `EsquemaRestriccionesTest` |
+| Dos citas no canceladas del mismo servicio y día no se solapan (que una termine donde empieza la otra sí vale) | Disparador `tr_cita_sin_solape` e índice filtrado `ix_cita_servicio_ocupada` (`V8`); `uq_cita_servicio_inicio` se conserva | La reserva ya lo impide bajo el bloqueo de la fila del servicio | `EsquemaDisparadoresTest` (incluye la carrera de dos conexiones y los traslados y reactivaciones), `ReservaConcurrenteTest`, `UsoConcurrenteEnlaceTest` |
+| Dos ventanas de disponibilidad del mismo servicio y día no se cruzan (pegadas sí) | Disparador `tr_ventana_sin_cruce` (`V9`) | `Validaciones.mensajeDeVentanasCruzadas`; `ServiciosServicio.guardar` borra todas las ventanas, vacía y las vuelve a insertar para que ningún paso intermedio las cruce | `EsquemaDisparadoresTest` (SQL directo) y `ServiciosControladorTest` (guardados válidos que antes se solapaban un instante y el cruce real, rechazado con el mensaje en español) |
+| La migración no corrige datos: aborta si los hay inválidos | `THROW 50001` en `V7`, `V8` y `V9` | Nunca se arreglan datos de usuario en silencio | `MigracionDatosTest` |
+
+### Errores de la base y cómo llegan a la API
+
+| Número | Origen | Resultado en la API |
+| --- | --- | --- |
+| `50001` | Aborto de la migración (`V7`, `V8`, `V9`) por datos que violan una regla | La API no arranca; el mensaje dice la regla, la tabla y hasta 5 ids |
+| `50010` | `tr_cita_sin_solape`: cita solapada | Al reservar, `409 HORARIO_NO_DISPONIBLE`; en otras rutas, `409 CONFLICTO` |
+| `50020` | `tr_ventana_sin_cruce`: ventanas cruzadas | `409 CONFLICTO` |
+
+Un `CHECK` o un índice único violado llega como `409 CONFLICTO`. Los mensajes hacia la API nunca llevan valores de
+la base. Se prueban en `ManejadorErroresTest` y `ErroresBaseTest` (cualquier `THROW` 50000–50099 se trata como
+rechazo de un disparador).
+
+### Si la migración aborta (`THROW 50001`)
+
+Al arrancar, Flyway falla con un mensaje que nombra la regla, la tabla y hasta 5 ids (o pares de ids) de ejemplo.
+La migración **nunca corrige ni borra datos por su cuenta**: `V7`, `V8` y `V9` auditan primero (solo lectura), se
+ejecutan cada una en una sola transacción y, si algo falla, la base queda en la versión anterior, sin
+restricciones ni disparadores a medias. Qué hacer: corregir a mano las filas que indica el mensaje (completar un
+texto vacío, cancelar o mover una de las citas solapadas, ajustar una ventana cruzada…) y volver a arrancar; el
+aborto se repite, con la siguiente regla violada, hasta que no quede ninguna.
+
+### Notas operativas
+
+- **Índice filtrado y bloqueos de rango.** `tr_cita_sin_solape` lee solo de `ix_cita_servicio_ocupada` (citas no
+  canceladas por servicio, día e inicio, con `hora_fin` incluida) con `UPDLOCK` y `HOLDLOCK`. El bloqueo de rango
+  puede alcanzar la clave frontera, que a veces es de otro día u otro servicio; una escritura sobre esa clave
+  podría esperar. No tiene efecto práctico: la aplicación toma antes el bloqueo de la fila del servicio y
+  serializa las reservas. Ante dos escrituras directas que se solapan a la vez, una confirma y la otra recibe
+  `50010` o es la víctima de un interbloqueo (error 1205); basta reintentarla.
+- **`tr_ventana_sin_cruce` y el aislamiento.** Su lectura no lleva sugerencias de bloqueo: ante escrituras
+  directas simultáneas se apoya en que la base **no** tenga `READ_COMMITTED_SNAPSHOT` activo (con él, una
+  transacción no ve ni espera las filas aún sin confirmar de la otra y podrían ganar las dos). Azure SQL lo
+  activa por defecto. Se comprueba con `SELECT is_read_committed_snapshot_on FROM sys.databases WHERE name =
+  DB_NAME()`. Si está activo, añade `WITH (UPDLOCK, HOLDLOCK)` a la lectura de `ventana_disponibilidad` del
+  disparador en una migración nueva (no se edita `V9`: Flyway valida su checksum). La API no se ve afectada porque
+  `ServiciosServicio.guardar` reemplaza las ventanas de un servicio dentro de una sola transacción.
+- **Reloj del servidor atrasado.** Si el reloj retrocede (p. ej. un ajuste NTP hacia atrás) y queda antes del
+  instante en que se creó una cita o un enlace, cancelar la cita o desactivar el enlace da `409 CONFLICTO` por
+  `ck_cita_cancelada_posterior` / `ck_enlace_invitacion_desactivado`. Se resuelve solo cuando el reloj alcanza
+  ese instante; no hay que tocar datos.
+- **Lo que las reglas no cubren.** `LTRIM`/`RTRIM` solo quitan espacios: un nombre formado solo por tabuladores
+  o saltos de línea pasa la base (la aplicación sí lo rechaza con su `strip()`). No hay regla de «no vacío» para
+  `usuario.telefono`, `rol.descripcion` ni `usuario.apellido` (la aplicación los permite vacíos). El correo y el
+  nombre de usuario solo prohíben A-Z ASCII (las tildes y eñes son válidas) y el correo no se valida tan
+  estrictamente como en Java. El hash solo comprueba la forma BCrypt, no que corresponda a una contraseña real.
+  Tampoco hay regla para los espacios internos de un nombre de usuario.
+
 ## Límites de operación
 
 - **No hay límite de tasa** (rate limiting): ni en el login ni en la zona pública. Si la API se expone a Internet,
