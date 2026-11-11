@@ -15,6 +15,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 
+import com.datemanager.infraestructura.Configuracion;
+
 /**
  * {@link Main} en un proceso hijo (con las clases compiladas y el driver de SQL Server en el classpath): sin la
  * configuración obligatoria termina con código 1, un mensaje claro y sin mostrar ningún valor secreto.
@@ -98,8 +100,26 @@ class MainTest {
         Resultado r = ejecutar(validasMenos());
 
         assertEquals(1, r.codigo(), r.salida());
-        assertTrue(r.salida().contains("No se pudo arrancar Date Manager API."), r.salida());
+        assertTrue(r.salida().contains("No se pudo arrancar Date Manager API:"), r.salida());
         assertFalse(r.salida().contains(CLAVE_BASE), r.salida());
         assertFalse(r.salida().contains("secreto-falso-solo-para-pruebas"), r.salida());
+        assertFalse(r.salida().contains("	at "), "no debe haber traza de pila: " + r.salida());
+    }
+
+    @Test
+    void laDescripcionDelErrorOcultaLosValoresSensiblesDeLaConfiguracion() {
+        Configuracion cfg = new Configuracion("jdbc:sqlserver://host;password=" + CLAVE_BASE, "usuario-de-prueba",
+                CLAVE_BASE, 1, "secreto-falso-solo-para-pruebas-0123456789abcdef", java.time.ZoneId.of("UTC"),
+                List.of(), "", "", false, 8080);
+        Error error = new Error("fallo con " + cfg.dbUrl() + " y " + cfg.dbUsuario(),
+                new IllegalStateException("clave " + CLAVE_BASE));
+
+        String texto = Main.descripcion(error, cfg);
+
+        assertTrue(texto.contains("java.lang.Error"), texto);
+        assertTrue(texto.contains("java.lang.IllegalStateException"), texto);
+        assertFalse(texto.contains(CLAVE_BASE), texto);
+        assertFalse(texto.contains("usuario-de-prueba"), texto);
+        assertFalse(texto.contains("jdbc:sqlserver"), texto);
     }
 }

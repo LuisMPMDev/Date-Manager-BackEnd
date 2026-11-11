@@ -51,7 +51,6 @@
                     <archive>
                         <manifest>
                             <mainClass>com.datemanager.Main</mainClass>
-                            <addClasspath>true</addClasspath>
                         </manifest>
                     </archive>
                 </configuration>
