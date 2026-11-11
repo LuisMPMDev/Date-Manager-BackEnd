@@ -1,0 +1,12 @@
+# Lista de las migraciones, una por línea. Hay que añadir aquí cada V*.sql nuevo (un jar no se puede listar);
+# IndiceMigracionesTest falla si esta lista y los archivos V*.sql no coinciden.
+V1__base.sql
+V2__roles_usuarios.sql
+V3__servicios.sql
+V4__clientes_citas.sql
+V5__enlaces.sql
+V6__indices_tablero.sql
+V7__restricciones_de_datos.sql
+V8__citas_sin_solape.sql
+V9__ventanas_sin_cruce.sql
+V10__disparador_citas_sin_bloqueos_de_mas.sql

@@ -1,0 +1,5 @@
+# El índice puede traer comentarios y líneas en blanco.
+
+V10__diez.sql
+V2__crea_orden.sql
+V9__nueve.sql

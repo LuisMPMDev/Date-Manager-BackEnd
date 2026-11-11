@@ -7,14 +7,21 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Handler;
 import java.util.logging.Level;
+import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
 import com.datemanager.dominio.CodigoError;
 import com.datemanager.dominio.ErrorNegocio;
+import com.datemanager.infraestructura.persistencia.ErrorSql;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ManejadorErroresTest {
 
@@ -89,7 +96,7 @@ class ManejadorErroresTest {
         registro.setLevel(Level.OFF);
         try {
             Respuesta r = ManejadorErrores.aRespuesta(
-                    new SQLException("La cita se solapa. valor-de-la-base", "S0001", 50010), "/api/citas");
+                    new SQLException("Invalid object name. valor-de-la-base", "S0001", 208), "/api/citas");
 
             assertEquals(500, r.estado());
             String json = Json.escribir(r.cuerpo());
@@ -100,5 +107,134 @@ class ManejadorErroresTest {
         } finally {
             registro.setLevel(nivel);
         }
+    }
+
+    // ---- Errores de la base ----
+
+    private static final String MENSAJE_CONFLICTO = "No se pudo guardar porque entra en conflicto con datos que ya existen.";
+    private static final String MENSAJE_EN_CURSO = "Hay otra operación en curso; inténtalo de nuevo.";
+
+    /** Captura lo que el manejador registra, con el texto ya formateado y el mensaje de la excepción adjunta. */
+    private static final class Captura extends Handler {
+        final List<LogRecord> registros = new ArrayList<>();
+
+        @Override
+        public void publish(LogRecord registro) {
+            registros.add(registro);
+        }
+
+        @Override
+        public void flush() {
+        }
+
+        @Override
+        public void close() {
+        }
+
+        /** Todo lo registrado como un solo texto: mensaje formateado, parámetros y la excepción, si la hubiera. */
+        String texto() {
+            StringBuilder t = new StringBuilder();
+            for (LogRecord r : registros) {
+                t.append(new java.util.logging.SimpleFormatter().format(r));
+            }
+            return t.toString();
+        }
+    }
+
+    private static Respuesta conCaptura(Throwable e, Captura captura) {
+        Logger registro = Logger.getLogger(ManejadorErrores.class.getName());
+        Level nivel = registro.getLevel();
+        boolean padres = registro.getUseParentHandlers();
+        registro.setLevel(Level.ALL);
+        registro.setUseParentHandlers(false);
+        registro.addHandler(captura);
+        try {
+            return ManejadorErrores.aRespuesta(e, "/api/citas");
+        } finally {
+            registro.removeHandler(captura);
+            registro.setUseParentHandlers(padres);
+            registro.setLevel(nivel);
+        }
+    }
+
+    private static ErrorSql sql(int codigo) {
+        return new ErrorSql(new SQLException("Violation of valor-de-la-base", "23000", codigo));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {2627, 2601, 547})
+    void unaViolacionDeRestriccionEsUn409ConElMensajeDeConflictoSinTextoDeLaBase(int codigo) {
+        Captura captura = new Captura();
+
+        Respuesta r = conCaptura(new RuntimeException("envoltorio", sql(codigo)), captura);
+
+        assertEquals(409, r.estado());
+        assertEquals("{\"type\":\"about:blank\",\"title\":\"Conflict\",\"status\":409,"
+                + "\"detail\":\"" + MENSAJE_CONFLICTO + "\",\"instance\":\"/api/citas\","
+                + "\"codigo\":\"CONFLICTO\",\"mensaje\":\"" + MENSAJE_CONFLICTO + "\"}",
+                Json.escribir(r.cuerpo()));
+        assertFalse(Json.escribir(r.cuerpo()).contains("valor-de-la-base"));
+        assertFalse(captura.texto().contains("valor-de-la-base"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1222, 1205})
+    void unFalloDeBloqueoEsUn409ConElMensajeDeOperacionEnCursoYSeRegistraSoloLaClase(int codigo) {
+        Captura captura = new Captura();
+
+        Respuesta r = conCaptura(sql(codigo), captura);
+
+        assertEquals(409, r.estado());
+        ManejadorErrores.Problema problema = assertInstanceOf(ManejadorErrores.Problema.class, r.cuerpo());
+        assertEquals("CONFLICTO", problema.codigo());
+        assertEquals(MENSAJE_EN_CURSO, problema.mensaje());
+        assertEquals(MENSAJE_EN_CURSO, problema.detail());
+        assertEquals(1, captura.registros.size());
+        assertEquals(Level.WARNING, captura.registros.get(0).getLevel());
+        assertNull(captura.registros.get(0).getThrown(), "sin traza: solo el nombre de la clase");
+        assertTrue(captura.texto().contains("ErrorSql"), captura.texto());
+        assertFalse(captura.texto().contains("valor-de-la-base"));
+        assertFalse(captura.texto().contains("23000"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {50000, 50010, 50099})
+    void elRechazoDeUnDisparadorEsUn409ConElMensajeDeConflictoYSeRegistraSoloLaClase(int codigo) {
+        Captura captura = new Captura();
+
+        Respuesta r = conCaptura(new IllegalStateException("otro envoltorio", sql(codigo)), captura);
+
+        assertEquals(409, r.estado());
+        ManejadorErrores.Problema problema = assertInstanceOf(ManejadorErrores.Problema.class, r.cuerpo());
+        assertEquals("CONFLICTO", problema.codigo());
+        assertEquals(MENSAJE_CONFLICTO, problema.mensaje());
+        assertFalse(Json.escribir(problema).contains("valor-de-la-base"));
+        assertEquals(1, captura.registros.size());
+        assertEquals(Level.WARNING, captura.registros.get(0).getLevel());
+        assertNull(captura.registros.get(0).getThrown());
+        assertTrue(captura.texto().contains("IllegalStateException"), captura.texto());
+        assertFalse(captura.texto().contains("valor-de-la-base"));
+    }
+
+    @Test
+    void otroErrorDeLaBaseSigueSiendoUn500() {
+        Logger registro = Logger.getLogger(ManejadorErrores.class.getName());
+        Level nivel = registro.getLevel();
+        registro.setLevel(Level.OFF);
+        try {
+            assertEquals(500, ManejadorErrores.aRespuesta(sql(515)).estado());
+            assertEquals(500, ManejadorErrores.aRespuesta(sql(0)).estado());
+            assertEquals(500, ManejadorErrores.aRespuesta(sql(50100)).estado());
+        } finally {
+            registro.setLevel(nivel);
+        }
+    }
+
+    @Test
+    void unErrorDeNegocioPrevaleceSobreUnaCausaDeLaBase() {
+        ErrorNegocio negocio = new ErrorNegocio(CodigoError.SIN_PERMISO, "No tienes permiso para realizar esta acción.");
+        negocio.initCause(sql(2627));
+
+        assertEquals(403, ManejadorErrores.aRespuesta(negocio).estado());
     }
 }

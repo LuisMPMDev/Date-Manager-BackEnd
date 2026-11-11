@@ -1,0 +1,1 @@
+INSERT INTO orden (n) VALUES (10)
