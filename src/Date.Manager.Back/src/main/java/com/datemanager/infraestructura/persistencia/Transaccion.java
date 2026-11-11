@@ -14,13 +14,25 @@ import java.util.function.Supplier;
  * <p>Es reentrante: una llamada anidada (en el mismo hilo) reutiliza la transacción en curso, como el
  * {@code REQUIRED} de Spring; solo la llamada más externa confirma o revierte. Una anidada de lectura dentro de una
  * escritura es normal; una escritura dentro de una lectura se rechaza ({@link IllegalStateException}), porque la
- * lectura revertiría lo escrito sin avisar.
+ * lectura revertiría lo escrito sin avisar. Si una llamada anidada falla, la transacción queda marcada solo para
+ * deshacer (como el rollback-only de Spring): aunque el código externo capture la excepción y siga, la llamada
+ * externa revierte y lanza {@link IllegalStateException} en vez de confirmar un trabajo posiblemente a medias.
  *
  * <p>La transacción es del hilo (también de un hilo virtual): el trabajo no debe pasar la conexión a otros hilos.
  */
 public final class Transaccion {
 
-    private record Contexto(Connection conexion, boolean soloLectura) {
+    /** La transacción del hilo; {@code soloDeshacer} lo marca una llamada anidada que falló (ver {@link #ejecutar}). */
+    private static final class Contexto {
+        final Connection conexion;
+        final boolean soloLectura;
+        boolean soloDeshacer;
+        Throwable primerFallo;
+
+        Contexto(Connection conexion, boolean soloLectura) {
+            this.conexion = conexion;
+            this.soloLectura = soloLectura;
+        }
     }
 
     private final Pool pool;
@@ -66,22 +78,34 @@ public final class Transaccion {
         if (contexto == null) {
             throw new IllegalStateException("No hay una transacción abierta en este hilo.");
         }
-        return contexto.conexion();
+        return contexto.conexion;
     }
 
     private <T> T ejecutar(Supplier<T> trabajo, boolean soloLectura) {
         Objects.requireNonNull(trabajo);
         Contexto existente = actual.get();
         if (existente != null) {
-            if (existente.soloLectura() && !soloLectura) {
+            if (existente.soloLectura && !soloLectura) {
                 throw new IllegalStateException("No se puede escribir dentro de una transacción de solo lectura.");
             }
-            return trabajo.get();
+            try {
+                return trabajo.get();
+            } catch (RuntimeException | Error e) {
+                // Como el rollback-only de Spring: aunque quien llama capture esta excepción y siga, lo que ya se
+                // hizo en la transacción puede estar a medias (un THROW de un disparador deshace lo suyo y las
+                // sentencias siguientes abrirían otra), así que la transacción ya no se puede confirmar.
+                existente.soloDeshacer = true;
+                if (existente.primerFallo == null) {
+                    existente.primerFallo = e;
+                }
+                throw e;
+            }
         }
         Connection conexion = pool.prestar();
         try {
             conexion.setAutoCommit(false);
-            actual.set(new Contexto(conexion, soloLectura));
+            Contexto contexto = new Contexto(conexion, soloLectura);
+            actual.set(contexto);
             T resultado;
             try {
                 resultado = trabajo.get();
@@ -91,6 +115,10 @@ public final class Transaccion {
             }
             if (soloLectura) {
                 conexion.rollback();
+            } else if (contexto.soloDeshacer) {
+                conexion.rollback();
+                throw new IllegalStateException("La transacción quedó marcada solo para deshacer porque una operación "
+                        + "anidada falló aunque el error se capturó; no se guardó nada.", contexto.primerFallo);
             } else {
                 conexion.commit();
             }

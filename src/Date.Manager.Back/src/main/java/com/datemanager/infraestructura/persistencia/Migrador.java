@@ -54,8 +54,16 @@ public final class Migrador {
     private static final char BOM = (char) 0xFEFF;
     private static final Pattern LINEA_GO = Pattern.compile("^\\s*GO\\s*$", Pattern.CASE_INSENSITIVE);
 
+    /** Punto de enganche de las pruebas: se llama tras cada lote ejecutado de una migración, antes de registrarla. */
+    @FunctionalInterface
+    interface Gancho {
+        void trasLote(int version, int lote);
+    }
+
     private final Pool pool;
     private final String carpeta;
+    private Gancho gancho = (version, lote) -> {
+    };
 
     public Migrador(Pool pool) {
         this(pool, CARPETA_POR_DEFECTO);
@@ -65,6 +73,12 @@ public final class Migrador {
     Migrador(Pool pool, String carpeta) {
         this.pool = pool;
         this.carpeta = carpeta;
+    }
+
+    /** Solo para pruebas: ver {@link Gancho}. */
+    Migrador conGancho(Gancho nuevo) {
+        this.gancho = nuevo;
+        return this;
     }
 
     // ---------------------------------------------------------------- API
@@ -392,27 +406,35 @@ public final class Migrador {
         }
     }
 
-    private static void ejecutar(Connection conexion, Historial historial, Migracion m) throws SQLException {
+    private void ejecutar(Connection conexion, Historial historial, Migracion m) throws SQLException {
         long inicio = System.nanoTime();
         conexion.setAutoCommit(false);
+        boolean confirmada = false;
         try {
+            int numero = 0;
             for (String lote : m.lotes()) {
                 ejecutarLote(conexion, lote);
+                gancho.trasLote(m.version(), numero++);
             }
             registrar(conexion, historial, m, (System.nanoTime() - inicio) / 1_000_000);
             conexion.commit();
+            confirmada = true;
             LOG.log(Level.INFO, "Migración V{0} aplicada: {1}", new Object[] {m.version(), m.descripcion()});
         } catch (SQLException | RuntimeException e) {
-            try {
-                conexion.rollback();
-            } catch (SQLException | RuntimeException r) {
-                e.addSuppressed(r);
-            }
             // El mensaje de la base (p. ej. el de la auditoría de V7) dice qué corregir; la causa conserva el código.
             String detalle = e instanceof SQLException ? e.getMessage() : e.getClass().getSimpleName();
             throw new IllegalStateException("La migración V" + m.version() + " (" + m.descripcion() + ") falló y se "
                     + "revirtió: " + detalle, e);
         } finally {
+            if (!confirmada) {
+                // Ante cualquier fallo, también un Error: pasar a confirmación automática con la transacción abierta la
+                // confirmaría (el driver hace COMMIT), dejando lotes aplicados sin registro. Se revierte antes.
+                try {
+                    conexion.rollback();
+                } catch (SQLException | RuntimeException e) {
+                    // La conexión está rota; el servidor revierte al cerrarla y el pool la descartará.
+                }
+            }
             try {
                 conexion.setAutoCommit(true);
             } catch (SQLException e) {

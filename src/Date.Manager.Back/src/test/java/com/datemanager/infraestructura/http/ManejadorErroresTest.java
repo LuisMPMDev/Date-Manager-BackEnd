@@ -21,6 +21,7 @@ import com.datemanager.dominio.ErrorNegocio;
 import com.datemanager.infraestructura.persistencia.ErrorSql;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ManejadorErroresTest {
@@ -157,8 +158,13 @@ class ManejadorErroresTest {
         }
     }
 
+    /** Con SQLState de error general (S0001), como los THROW y los errores de bloqueo: solo cuenta el número. */
     private static ErrorSql sql(int codigo) {
-        return new ErrorSql(new SQLException("Violation of valor-de-la-base", "23000", codigo));
+        return sql(codigo, "S0001");
+    }
+
+    private static ErrorSql sql(int codigo, String estado) {
+        return new ErrorSql(new SQLException("Violation of valor-de-la-base", estado, codigo));
     }
 
     @ParameterizedTest
@@ -216,13 +222,42 @@ class ManejadorErroresTest {
         assertFalse(captura.texto().contains("valor-de-la-base"));
     }
 
+    /** Como en la aplicación original: NULL en columna no nula (515), texto largo (8152, 2628), etc. son un 409. */
+    @ParameterizedTest
+    @CsvSource({"515,23000", "8152,22001", "2628,22001", "8115,22003", "0,27000", "0,44000", "2628,S0001", "8152,S0001"})
+    void unErrorDeIntegridadDeDatosPorSqlStateEsUn409ConElMensajeDeConflicto(int codigo, String estado) {
+        Captura captura = new Captura();
+
+        Respuesta r = conCaptura(new RuntimeException("envoltorio", sql(codigo, estado)), captura);
+
+        assertEquals(409, r.estado());
+        ManejadorErrores.Problema problema = assertInstanceOf(ManejadorErrores.Problema.class, r.cuerpo());
+        assertEquals("CONFLICTO", problema.codigo());
+        assertEquals(MENSAJE_CONFLICTO, problema.mensaje());
+        assertFalse(Json.escribir(problema).contains("valor-de-la-base"));
+        assertFalse(captura.texto().contains("valor-de-la-base"));
+    }
+
+    @Test
+    void elBloqueoYElDisparadorMandanSobreElSqlStateAunqueSeaDeIntegridad() {
+        Captura bloqueo = new Captura();
+        Respuesta r1 = conCaptura(sql(1205, "23000"), bloqueo);
+        assertEquals(MENSAJE_EN_CURSO, assertInstanceOf(ManejadorErrores.Problema.class, r1.cuerpo()).mensaje());
+
+        Captura disparador = new Captura();
+        Respuesta r2 = conCaptura(sql(50010, "23000"), disparador);
+        assertEquals(MENSAJE_CONFLICTO, assertInstanceOf(ManejadorErrores.Problema.class, r2.cuerpo()).mensaje());
+        assertEquals(1, disparador.registros.size(), "se registra el rechazo del disparador");
+    }
+
     @Test
     void otroErrorDeLaBaseSigueSiendoUn500() {
         Logger registro = Logger.getLogger(ManejadorErrores.class.getName());
         Level nivel = registro.getLevel();
         registro.setLevel(Level.OFF);
         try {
-            assertEquals(500, ManejadorErrores.aRespuesta(sql(515)).estado());
+            assertEquals(500, ManejadorErrores.aRespuesta(sql(208, "42S02")).estado());
+            assertEquals(500, ManejadorErrores.aRespuesta(sql(102, "42000")).estado());
             assertEquals(500, ManejadorErrores.aRespuesta(sql(0)).estado());
             assertEquals(500, ManejadorErrores.aRespuesta(sql(50100)).estado());
         } finally {

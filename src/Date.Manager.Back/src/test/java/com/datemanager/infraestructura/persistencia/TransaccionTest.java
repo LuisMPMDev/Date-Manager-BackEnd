@@ -303,6 +303,107 @@ class TransaccionTest extends PruebaBase {
         }
     }
 
+    // ---- Una anidada que falla y se captura deja la transacción solo para deshacer ----
+
+    @Test
+    void unaAnidadaQueFallaYSeCapturaNoDejaConfirmarLaExterna() {
+        IllegalArgumentException anidada = new IllegalArgumentException("falla la anidada");
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> transaccion.escribir(() -> {
+            insertarRol(transaccion.conexion(), "Antes");
+            try {
+                transaccion.escribir((Runnable) () -> {
+                    insertarRol(transaccion.conexion(), "Dentro");
+                    throw anidada;
+                });
+            } catch (IllegalArgumentException capturada) {
+                // El código externo se traga el error y sigue.
+            }
+            insertarRol(transaccion.conexion(), "Despues");
+        }));
+
+        assertTrue(e.getMessage().contains("solo para deshacer"), e.getMessage());
+        assertSame(anidada, e.getCause(), "la causa es el primer fallo anidado");
+        assertEquals(0, roles(), "no se guardó ni lo de antes ni lo de después");
+        assertEquals(TAMANO, propio.disponibles());
+        assertFalse(transaccion.activa());
+        // La marca es de aquella transacción: la siguiente se confirma con normalidad.
+        transaccion.escribir(() -> insertarRol(transaccion.conexion(), "Nueva"));
+        assertEquals(1, roles());
+    }
+
+    @Test
+    void unaViolacionDeLaBaseEnLaAnidadaCapturadaTambienImpideConfirmarYSeConservaComoCausa() {
+        UUID id = UUID.randomUUID();
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> transaccion.escribir(() -> {
+            insertarRol(transaccion.conexion(), "Antes");
+            try {
+                transaccion.escribir(() -> {
+                    for (int i = 0; i < 2; i++) {
+                        try (var s = transaccion.conexion().prepareStatement(INSERTAR_ROL)) {
+                            s.setObject(1, id);
+                            s.setNString(2, "Repetido" + i);
+                            s.executeUpdate();
+                        } catch (SQLException ex) {
+                            throw new ErrorSql(ex);
+                        }
+                    }
+                });
+            } catch (ErrorSql capturada) {
+                // Se traga el error de la base y sigue escribiendo.
+            }
+            insertarRol(transaccion.conexion(), "Despues");
+        }));
+
+        assertTrue(ErroresBase.esViolacionDeRestriccion(e), "la causa conserva el error de la base");
+        assertFalse(e.getMessage().contains("Repetido"), "el mensaje propio no lleva datos");
+        assertEquals(0, roles());
+        assertEquals(TAMANO, propio.disponibles());
+    }
+
+    @Test
+    void tambienMarcaUnaLecturaAnidadaQueFalla() {
+        assertThrows(IllegalStateException.class, () -> transaccion.escribir(() -> {
+            insertarRol(transaccion.conexion(), "Antes");
+            try {
+                transaccion.leer(() -> {
+                    throw new UnsupportedOperationException("lectura");
+                });
+            } catch (UnsupportedOperationException capturada) {
+                // Se ignora.
+            }
+        }));
+
+        assertEquals(0, roles());
+        assertEquals(TAMANO, propio.disponibles());
+    }
+
+    @Test
+    void unErrorCapturadoPorElCodigoExternoSinLlamadaAnidadaNoMarcaNada() {
+        transaccion.escribir(() -> {
+            try {
+                throw new IllegalArgumentException("propio del trabajo");
+            } catch (IllegalArgumentException capturada) {
+                // No hubo llamada anidada: la transacción sigue sana.
+            }
+            insertarRol(transaccion.conexion(), "Sigue");
+        });
+
+        assertEquals(1, roles());
+    }
+
+    @Test
+    void unaAnidadaQueFuncionaNoMarcaNada() {
+        transaccion.escribir(() -> {
+            transaccion.escribir(() -> insertarRol(transaccion.conexion(), "A"));
+            transaccion.leer(() -> null);
+            insertarRol(transaccion.conexion(), "B");
+        });
+
+        assertEquals(2, roles());
+    }
+
     @Test
     void laTransaccionEsDeCadaHiloYNoSeComparte() throws Exception {
         ExecutorService hilos = Executors.newVirtualThreadPerTaskExecutor();

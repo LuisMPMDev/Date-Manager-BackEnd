@@ -260,6 +260,26 @@ class EsquemaRestriccionesTest extends PruebaBase {
         assertEquals(HASH, consultarTexto("SELECT clave_hash FROM usuario WHERE usuario = 'ana'"));
     }
 
+    // ---- Errores de datos que la base clasifica por SQLState (como el traductor de Spring de la aplicación original) ----
+
+    @Test
+    void unNullEnUnaColumnaNoNulaSeClasificaComoViolacionDeRestriccion() {
+        ErrorSql e = assertThrows(ErrorSql.class, () -> ejecutar(
+                "INSERT INTO rol (id, nombre, descripcion) VALUES (?, NULL, 'd')", UUID.randomUUID()));
+
+        assertEquals(515, codigoSql(e));
+        assertTrue(ErroresBase.esViolacionDeRestriccion(e), "515 / SQLState 23000 debe dar 409, no 500");
+    }
+
+    @Test
+    void unTextoMasLargoQueLaColumnaSeClasificaComoViolacionDeRestriccion() {
+        ErrorSql e = assertThrows(ErrorSql.class, () -> ejecutar(
+                "INSERT INTO rol (id, nombre, descripcion) VALUES (?, ?, 'd')", UUID.randomUUID(), "x".repeat(5000)));
+
+        assertTrue(codigoSql(e) == 8152 || codigoSql(e) == 2628, "código " + codigoSql(e));
+        assertTrue(ErroresBase.esViolacionDeRestriccion(e), "truncamiento / SQLState 22001 debe dar 409, no 500");
+    }
+
     // ---- Servicio y enlace ----
 
     @Test

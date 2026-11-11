@@ -89,15 +89,16 @@ public final class ManejadorErrores {
         // aplicación (p. ej. dos peticiones simultáneas), es un conflicto y no un 500. La excepción puede llegar
         // envuelta en cualquier otra, así que se busca en toda la cadena de causas. El texto de la base (que puede
         // traer valores de las columnas) nunca se devuelve ni se registra: solo el nombre de la clase.
-        if (ErroresBase.esViolacionDeRestriccion(e)) {
-            return respuesta(409, CodigoError.CONFLICTO, MENSAJE_CONFLICTO_DE_DATOS, null, instancia);
-        }
+        // Primero los números de error exactos (bloqueo y disparador); la restricción es más amplia (SQLState) y va al final.
         if (ErroresBase.esFalloDeBloqueo(e)) {
             LOG.log(Level.WARNING, "Fallo de bloqueo en la base: {0}", e.getClass().getSimpleName());
             return respuesta(409, CodigoError.CONFLICTO, MENSAJE_OPERACION_EN_CURSO, null, instancia);
         }
         if (ErroresBase.esViolacionDeDisparador(e)) {
             LOG.log(Level.WARNING, "Un disparador de la base rechazó la escritura: {0}", e.getClass().getSimpleName());
+            return respuesta(409, CodigoError.CONFLICTO, MENSAJE_CONFLICTO_DE_DATOS, null, instancia);
+        }
+        if (ErroresBase.esViolacionDeRestriccion(e)) {
             return respuesta(409, CodigoError.CONFLICTO, MENSAJE_CONFLICTO_DE_DATOS, null, instancia);
         }
         LOG.log(Level.SEVERE, "Error inesperado", e);

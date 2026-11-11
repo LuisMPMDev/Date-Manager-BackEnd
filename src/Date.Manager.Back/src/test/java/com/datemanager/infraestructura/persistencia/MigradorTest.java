@@ -263,6 +263,52 @@ class MigradorTest extends PruebaBase {
         assertEquals(50001, codigoSql(otra));
     }
 
+    /**
+     * Un {@link Error} de Java (memoria, pila, una aserción del driver) a mitad de una migración no es una
+     * excepción del migrador, pero tampoco puede dejar lotes confirmados sin su registro: pasar a confirmación
+     * automática con la transacción abierta la confirmaría. Se inyecta el fallo tras el primer lote de V1, que ya
+     * creó su tabla.
+     */
+    @Test
+    void unErrorDeJavaATresMediasNoDejaNadaAplicadoNiConfirmado() {
+        migrador.limpiar();
+        Migrador prueba = con("db/migracion-prueba").conGancho((version, lote) -> {
+            if (version == 1 && lote == 0) {
+                throw new AssertionError("fallo grave simulado");
+            }
+        });
+
+        AssertionError e = assertThrows(AssertionError.class, prueba::migrar);
+
+        assertEquals("fallo grave simulado", e.getMessage(), "el Error sale tal cual");
+        assertFalse(existe("prueba_uno"), "la tabla del primer lote no quedó confirmada");
+        assertEquals(Optional.empty(), prueba.versionActual());
+        assertEquals(0, consultarInt("SELECT COUNT(*) FROM historial_migraciones"));
+        assertEquals(10, pool.disponibles(), "la conexión volvió al pool");
+
+        // Y la base sigue sirviendo: sin el fallo, la misma migración se aplica (V2 falla a propósito, V1 queda).
+        IllegalStateException v2 = assertThrows(IllegalStateException.class, con("db/migracion-prueba")::migrar);
+        assertEquals(50001, codigoSql(v2));
+        assertEquals(Optional.of(1), con("db/migracion-prueba").versionActual());
+    }
+
+    @Test
+    void unaExcepcionInesperadaATresMediasSeEnvuelveYNoDejaNada() {
+        migrador.limpiar();
+        Migrador prueba = con("db/migracion-prueba").conGancho((version, lote) -> {
+            if (version == 1 && lote == 1) {
+                throw new IllegalArgumentException("fallo simulado");
+            }
+        });
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, prueba::migrar);
+
+        assertTrue(e.getMessage().contains("V1"), e.getMessage());
+        assertFalse(existe("prueba_uno"));
+        assertEquals(Optional.empty(), prueba.versionActual());
+        assertEquals(10, pool.disponibles());
+    }
+
     @Test
     void dosMigradoresALaVezSobreUnaBaseLimpiaNoDuplicanNiFallan() throws Exception {
         migrador.limpiar();
