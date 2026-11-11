@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import com.datemanager.CodificadorFalso;
 import com.datemanager.PruebaIntegracion;
+import com.datemanager.infraestructura.seguridad.Bcrypt;
 
 /** Utilidades para probar las rutas del panel: crear roles y usuarios por SQL, emitir tokens y llamar con ellos. */
 abstract class PruebaPanel extends PruebaIntegracion {
@@ -31,6 +32,26 @@ abstract class PruebaPanel extends PruebaIntegracion {
                 VALUES (?, ?, 'Prueba', ?, '300 555 0000', ?, ?, ?)
                 """, id, usuario, usuario + "@example.com", usuario, CodificadorFalso.hash("clave-" + usuario), rolId);
         return id;
+    }
+
+    /** Usuario con el hash BCrypt real de {@code clave} (para las pruebas que comprueban la clave guardada). */
+    protected UUID crearUsuario(String usuario, UUID rolId, String clave) {
+        UUID id = UUID.randomUUID();
+        ejecutar("""
+                INSERT INTO usuario (id, nombre, apellido, correo, telefono, usuario, clave_hash, rol_id)
+                VALUES (?, ?, 'Prueba', ?, '300 555 0000', ?, ?, ?)
+                """, id, usuario, usuario + "@example.com", usuario, BCRYPT.codificar(clave), rolId);
+        return id;
+    }
+
+    protected static final Bcrypt BCRYPT = new Bcrypt();
+
+    protected static String hashDe(UUID usuarioId) {
+        return consultarTexto("SELECT clave_hash FROM usuario WHERE id = ?", usuarioId);
+    }
+
+    protected static Resp eliminar(String ruta, UUID actor) {
+        return delete(ruta).conToken(tokenDe(actor)).enviar();
     }
 
     protected static int contar(String tabla) {

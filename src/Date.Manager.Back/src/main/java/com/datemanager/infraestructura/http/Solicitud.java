@@ -100,6 +100,11 @@ public final class Solicitud {
         }
     }
 
+    /** Si la petición trae cuerpo (para los cuerpos opcionales, el {@code required = false} de Spring). */
+    public boolean tieneCuerpo() {
+        return cuerpo.length > 0;
+    }
+
     /**
      * El cuerpo como objeto JSON. Se acepta sin {@code Content-Type} o con uno JSON (415 si es otro).
      *

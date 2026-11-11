@@ -71,6 +71,20 @@ public class UsuarioRepositorio {
         });
     }
 
+    /** Los usuarios con esos ids, en una sola consulta (los que no existan no aparecen). */
+    public List<Usuario> porIds(Collection<UUID> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return Jdbc.con(transaccion, c -> {
+            try (PreparedStatement s = c.prepareStatement(
+                    "SELECT " + COLUMNAS + " FROM usuario WHERE id IN (" + Jdbc.marcadores(ids.size()) + ")")) {
+                Jdbc.enlazar(s, Jdbc.conColeccion(ids));
+                return lista(s);
+            }
+        });
+    }
+
     /** Todos los usuarios, por nombre de usuario y luego por id (como el {@code findAll} ordenado de la original). */
     public List<Usuario> todos() {
         return Jdbc.con(transaccion, c -> {
