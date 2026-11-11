@@ -245,6 +245,9 @@ public final class ServidorHttp {
         if (respuesta.cuerpo() == null) {
             return new Salida(respuesta.estado(), null, new byte[0]);
         }
+        if (respuesta.cuerpo() instanceof Respuesta.Contenido contenido) {
+            return new Salida(respuesta.estado(), contenido.tipo(), contenido.bytes());
+        }
         // Se serializa antes de enviar nada: si falla, todavía se puede responder con un 500.
         byte[] bytes = Json.escribir(respuesta.cuerpo()).getBytes(StandardCharsets.UTF_8);
         String tipo = respuesta.cuerpo() instanceof ManejadorErrores.Problema ? TIPO_PROBLEMA : TIPO_JSON;

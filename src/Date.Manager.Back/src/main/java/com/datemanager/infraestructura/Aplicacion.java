@@ -25,6 +25,7 @@ import com.datemanager.aplicacion.UsuariosServicio;
 import com.datemanager.infraestructura.http.Enrutador;
 import com.datemanager.infraestructura.http.Ruta;
 import com.datemanager.infraestructura.http.ServidorHttp;
+import com.datemanager.infraestructura.openapi.SwaggerUi;
 import com.datemanager.infraestructura.persistencia.BloqueoAdministracion;
 import com.datemanager.infraestructura.persistencia.CitaRepositorio;
 import com.datemanager.infraestructura.persistencia.ClienteRepositorio;
@@ -119,6 +120,10 @@ public final class Aplicacion {
         registrar(new EnlacesControlador(enlaces).rutas());
         registrar(new PublicoControlador(enlaces).rutas());
         registrar(new InicioControlador(inicio).rutas());
+        if (cfg.dev()) {
+            // Swagger como antes con springdoc: solo en dev; fuera de dev estas rutas no existen (404).
+            registrar(SwaggerUi.rutas(rutas));
+        }
 
         servidor = new ServidorHttp(cfg, rutas, new Autenticador(jwt, usuarios, roles, tx));
         migrador = new Migrador(pool);
