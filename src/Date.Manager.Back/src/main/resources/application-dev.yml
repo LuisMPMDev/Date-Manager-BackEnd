@@ -1,6 +1,0 @@
-# Perfil dev: Swagger UI activo y siembra de datos de ejemplo (SemillaDatos, solo si la base está vacía).
-springdoc:
-  api-docs:
-    enabled: true
-  swagger-ui:
-    enabled: true
