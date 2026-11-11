@@ -3,6 +3,7 @@ package com.datemanager.infraestructura.http;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Map;
@@ -74,6 +75,17 @@ class EnrutadorTest {
         assertThrows(IllegalArgumentException.class, () -> new Ruta("HEAD", "/a", Set.of(), true, m, null));
         assertThrows(IllegalArgumentException.class, () -> new Ruta("OPTIONS", "/a", Set.of(), true, m, null));
         assertThrows(IllegalArgumentException.class, () -> new Ruta("GET", "/a", Set.of(), true, null, null));
+    }
+
+    @Test
+    void unPermisoFueraDelCatalogoSeRechazaAlCrearLaRuta() {
+        Manejador m = s -> Respuesta.sinContenido();
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> new Ruta("GET", "/a", Set.of("ver_citas", "no_existe"), false, m, null));
+        assertTrue(e.getMessage().contains("no_existe") && e.getMessage().contains("GET /a"), e.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> new Ruta("GET", "/a", Set.of("VER_CITAS"), false, m, null));
+        new Ruta("GET", "/a", Set.of("ver_citas", "gestionar_roles"), false, m, null);
     }
 
     @Test

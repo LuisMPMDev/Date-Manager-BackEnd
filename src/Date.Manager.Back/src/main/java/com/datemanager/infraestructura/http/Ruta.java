@@ -5,11 +5,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.datemanager.infraestructura.seguridad.Autenticador;
+
 /**
  * Una operación de la API. {@code patron} usa segmentos literales y {@code {nombre}} (un segmento completo, no
  * vacío); {@code HEAD} y {@code OPTIONS} no se declaran: el servidor los resuelve.
  *
- * @param permisosAlgunoDe basta con tener uno; vacío = solo exige sesión (ignorado si la ruta es pública)
+ * @param permisosAlgunoDe ids del catálogo {@code Permiso} (uno desconocido es un error al crear la ruta); basta con
+ *     tener uno; vacío = solo exige sesión (ignorado si la ruta es pública)
  * @param publica no exige sesión y ni siquiera lee la cabecera {@code Authorization}
  * @param doc para OpenAPI; puede ser {@code null}
  */
@@ -28,6 +31,12 @@ public record Ruta(String metodo, String patron, Set<String> permisosAlgunoDe, b
         permisosAlgunoDe = permisosAlgunoDe == null ? Set.of() : Set.copyOf(permisosAlgunoDe);
         if (publica && !permisosAlgunoDe.isEmpty()) {
             throw new IllegalArgumentException("Una ruta pública no puede exigir permisos: " + patron);
+        }
+        try {
+            Autenticador.validarCatalogo(permisosAlgunoDe);
+        } catch (IllegalArgumentException e) {
+            // Un error de quien declara la ruta: que falle al registrarla, no en cada petición.
+            throw new IllegalArgumentException(e.getMessage() + " (en " + metodo + " " + patron + ")", e);
         }
         segmentos(patron); // valida el patrón
     }
