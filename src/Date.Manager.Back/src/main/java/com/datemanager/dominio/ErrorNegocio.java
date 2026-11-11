@@ -1,5 +1,7 @@
 package com.datemanager.dominio;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** Regla de negocio incumplida; el mensaje (en español) se muestra al usuario. */
@@ -16,7 +18,8 @@ public class ErrorNegocio extends RuntimeException {
     public ErrorNegocio(CodigoError codigo, String mensaje, Map<String, String> campos) {
         super(mensaje);
         this.codigo = codigo;
-        this.campos = campos == null ? null : Map.copyOf(campos);
+        // Copia inmutable que conserva el orden de inserción (Map.copyOf lo desordena): el primer campo es el del mensaje.
+        this.campos = campos == null ? null : Collections.unmodifiableMap(new LinkedHashMap<>(campos));
     }
 
     public CodigoError codigo() {
