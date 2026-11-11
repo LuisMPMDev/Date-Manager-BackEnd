@@ -7,12 +7,17 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -33,6 +38,18 @@ public final class ServidorHttp {
 
     private static final Logger LOG = Logger.getLogger(ServidorHttp.class.getName());
 
+    /** Tiempo máximo, por defecto, para recibir el cuerpo de una petición (o descartarlo). */
+    public static final Duration PLAZO_LECTURA = Duration.ofSeconds(30);
+
+    static {
+        // El servidor del JDK no corta por sí mismo a quien deja la petición a medias (cabeceras o cuerpo): con esta
+        // propiedad (segundos) cierra la conexión pasado ese tiempo. Se lee una sola vez, al cargar el servidor, y
+        // una -D explícita manda. Cubre las cabeceras, que ocurren antes de que haya un manejador en marcha.
+        if (System.getProperty("sun.net.httpserver.maxReqTime") == null) {
+            System.setProperty("sun.net.httpserver.maxReqTime", Long.toString(PLAZO_LECTURA.toSeconds()));
+        }
+    }
+
     /** Tamaño máximo del cuerpo de una petición. */
     static final int LIMITE_CUERPO = 1024 * 1024;
 
@@ -51,6 +68,20 @@ public final class ServidorHttp {
     private static final String TIPO_PROBLEMA = "application/problem+json";
     private static final String TIPO_TEXTO = "text/plain; charset=utf-8";
 
+    /** El plazo de lectura venció y se cerró la conexión: ya no hay a quién responder. */
+    private static final class ConexionAbandonada extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        ConexionAbandonada() {
+            super("Se agotó el plazo de lectura de la petición.", null, false, false);
+        }
+    }
+
+    @FunctionalInterface
+    private interface Lectura<T> {
+        T leer() throws IOException;
+    }
+
     /** Lo que se escribe en la conexión; {@code tipo} es {@code null} si no hay cuerpo. */
     private record Salida(int estado, String tipo, byte[] cuerpo) {
     }
@@ -59,13 +90,24 @@ public final class ServidorHttp {
     private final List<String> origenes;
     private final Enrutador rutas;
     private final Autenticacion autenticacion;
+    private final Duration plazoLectura;
     private HttpServer servidor;
     private ExecutorService executor;
+    private ScheduledThreadPoolExecutor vigilante;
 
     /**
      * @param cfg puerto (0 = uno libre cualquiera) y orígenes CORS permitidos ({@code *} para todos)
      */
     public ServidorHttp(Configuracion cfg, Enrutador rutas, Autenticacion autenticacion) {
+        this(cfg, rutas, autenticacion, PLAZO_LECTURA);
+    }
+
+    /**
+     * @param plazoLectura lo máximo que se espera a recibir el cuerpo de una petición; pasado ese tiempo se cierra
+     *     la conexión (para quien envía el cuerpo a cuentagotas o lo deja a medias)
+     */
+    public ServidorHttp(Configuracion cfg, Enrutador rutas, Autenticacion autenticacion, Duration plazoLectura) {
+        this.plazoLectura = plazoLectura;
         this.puerto = cfg.puerto();
         this.origenes = cfg.corsOrigenes().stream().map(ServidorHttp::sinBarraFinal).toList();
         this.rutas = rutas;
@@ -82,6 +124,12 @@ public final class ServidorHttp {
             throw new UncheckedIOException("No se pudo abrir el puerto " + puerto + ".", e);
         }
         executor = Executors.newVirtualThreadPerTaskExecutor();
+        vigilante = new ScheduledThreadPoolExecutor(1, tarea -> {
+            Thread hilo = new Thread(tarea, "vigilante-lectura");
+            hilo.setDaemon(true);
+            return hilo;
+        });
+        vigilante.setRemoveOnCancelPolicy(true);
         servidor.setExecutor(executor);
         servidor.createContext("/", this::atender);
         servidor.start();
@@ -110,8 +158,10 @@ public final class ServidorHttp {
             executor.shutdownNow();
             Thread.currentThread().interrupt();
         }
+        vigilante.shutdownNow();
         servidor = null;
         executor = null;
+        vigilante = null;
     }
 
     // ------------------------------------------------------------------ una petición
@@ -122,6 +172,9 @@ public final class ServidorHttp {
             Salida salida;
             try {
                 salida = procesar(intercambio, ruta);
+            } catch (ConexionAbandonada e) {
+                LOG.log(Level.FINE, "Conexión cerrada por plazo de lectura: {0}", ruta);
+                return;
             } catch (Throwable t) {
                 salida = deError(intercambio, t, ruta);
             }
@@ -129,6 +182,8 @@ public final class ServidorHttp {
                 descartarCuerpo(intercambio.getRequestBody());
             }
             enviar(intercambio, salida);
+        } catch (ConexionAbandonada e) {
+            LOG.log(Level.FINE, "Conexión cerrada por plazo de lectura al descartar el cuerpo: {0}", ruta);
         } catch (Throwable t) {
             // Normalmente el cliente se fue a mitad de la respuesta; no hay a quién contestar.
             LOG.log(Level.FINE, "No se pudo escribir la respuesta", t);
@@ -166,7 +221,15 @@ public final class ServidorHttp {
 
         Map<String, List<String>> consulta = Solicitud.leerConsulta(intercambio.getRequestURI().getRawQuery());
         intercambio.setAttribute(ATRIBUTO_CUERPO_LEIDO, Boolean.TRUE);
-        byte[] cuerpo = leerCuerpo(intercambio.getRequestBody());
+        byte[] cuerpo;
+        try {
+            cuerpo = conPlazo(() -> leerCuerpo(intercambio.getRequestBody()));
+        } catch (IOException e) {
+            // Troceado mal formado, conexión cortada a mitad del cuerpo...: es una petición ilegible, no un fallo
+            // del servidor. Si el cliente sigue ahí recibe el 400; si no, la escritura de abajo falla sin ruido.
+            LOG.log(Level.FINE, "Cuerpo ilegible: {0}", e.toString());
+            throw ErrorHttp.peticionInvalida();
+        }
         Solicitud solicitud = new Solicitud(metodo, ruta, coincidencia.parametros(), consulta,
                 cabeceras.getFirst("Content-Type"), cuerpo, usuario);
 
@@ -231,16 +294,53 @@ public final class ServidorHttp {
      * si se responde con el cuerpo a medio enviar, el servidor del JDK cierra la conexión y el cliente recibe un
      * error de red en vez del 401.
      */
-    private static void descartarCuerpo(InputStream entrada) {
+    private void descartarCuerpo(InputStream entrada) {
         byte[] bloque = new byte[8192];
-        long total = 0;
         try {
-            int leidos;
-            while (total <= LIMITE_DESCARTE && (leidos = entrada.read(bloque)) >= 0) {
-                total += leidos;
-            }
+            conPlazo(() -> {
+                long total = 0;
+                int leidos;
+                while (total <= LIMITE_DESCARTE && (leidos = entrada.read(bloque)) >= 0) {
+                    total += leidos;
+                }
+                return null;
+            });
         } catch (IOException e) {
-            LOG.log(Level.FINE, "No se pudo descartar el cuerpo", e);
+            LOG.log(Level.FINE, "No se pudo descartar el cuerpo: {0}", e.toString());
+        }
+    }
+
+    /**
+     * Ejecuta una lectura de la conexión con el plazo {@link #plazoLectura}. Si vence, interrumpe el hilo: una lectura
+     * bloqueante interrumpida cierra el canal y falla, con lo que el hilo y el socket quedan libres aunque el cliente
+     * siga callado.
+     *
+     * @throws ConexionAbandonada si venció el plazo (la conexión ya está cerrada)
+     */
+    private <T> T conPlazo(Lectura<T> lectura) throws IOException {
+        Thread hilo = Thread.currentThread();
+        AtomicBoolean vencido = new AtomicBoolean();
+        ScheduledFuture<?> alarma = vigilante.schedule(() -> {
+            vencido.set(true);
+            hilo.interrupt();
+        }, plazoLectura.toNanos(), TimeUnit.NANOSECONDS);
+        try {
+            return lectura.leer();
+        } catch (IOException e) {
+            if (vencido.get()) {
+                throw new ConexionAbandonada();
+            }
+            throw e;
+        } finally {
+            if (!alarma.cancel(false)) {
+                // Ya corrió o está corriendo: esperar a que termine su interrupt() para limpiarlo después.
+                try {
+                    alarma.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    // La interrupción de la alarma; se limpia abajo.
+                }
+            }
+            Thread.interrupted();
         }
     }
 

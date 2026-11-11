@@ -5,7 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -15,10 +20,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Handler;
 import java.util.logging.Level;
+import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
 import com.datemanager.ClienteHttpPrueba;
@@ -110,6 +118,11 @@ class ServidorHttpTest {
         rutas.agregar(publica("GET", "/api/citas/hoy", s -> Respuesta.ok(Map.of("quien", "literal"))));
         rutas.agregar(publica("GET", "/api/citas/{id}", s -> Respuesta.ok(Map.of("quien", "parametro"))));
         rutas.agregar(publica("POST", "/api/cuerpo", s -> Respuesta.ok(s.cuerpoObjeto())));
+        rutas.agregar(publica("POST", "/api/lenta-despues", s -> {
+            s.cuerpoObjeto();
+            Thread.sleep(1500);
+            return Respuesta.ok(Map.of("ok", true));
+        }));
         rutas.agregar(publica("POST", "/api/crear", s -> Respuesta.creada(Map.of("creado", true))));
         rutas.agregar(publica("DELETE", "/api/cosas/{id}", s -> Respuesta.sinContenido()));
         rutas.agregar(publica("GET", "/api/vacia", s -> new Respuesta(200, null)));
@@ -570,6 +583,172 @@ class ServidorHttpTest {
     void siLaAutenticacionFallaDeFormaInesperadaEsUn500() {
         esProblema(http.get("/api/citas", "Authorization", "Bearer explota"), 500, "ERROR_INTERNO",
                 "Ocurrió un error inesperado. Inténtalo de nuevo más tarde.");
+    }
+
+    // ------------------------------------------------------------------ cuerpos ilegibles o que no llegan
+
+    private static final String POST_CUERPO = "POST /api/cuerpo HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n";
+
+    /** Ejecuta la acción y devuelve lo que se registró como aviso o error (nada, si todo va bien). */
+    private List<LogRecord> registrosGraves(Runnable accion) {
+        List<LogRecord> graves = new CopyOnWriteArrayList<>();
+        Handler captura = new Handler() {
+            @Override
+            public void publish(LogRecord registro) {
+                if (registro.getLevel().intValue() >= Level.WARNING.intValue()) {
+                    graves.add(registro);
+                }
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        Logger servidorLog = Logger.getLogger(ServidorHttp.class.getName());
+        Level nivelErrores = registroDeErrores.getLevel();
+        Level nivelServidor = servidorLog.getLevel();
+        registroDeErrores.setLevel(Level.ALL);
+        servidorLog.setLevel(Level.ALL);
+        registroDeErrores.addHandler(captura);
+        servidorLog.addHandler(captura);
+        try {
+            accion.run();
+        } finally {
+            registroDeErrores.removeHandler(captura);
+            servidorLog.removeHandler(captura);
+            registroDeErrores.setLevel(nivelErrores);
+            servidorLog.setLevel(nivelServidor);
+        }
+        return graves;
+    }
+
+    private static void dormir(long milisegundos) {
+        try {
+            Thread.sleep(milisegundos);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** Espera a que el servidor cierre la conexión (EOF o reinicio); falla si en cambio vence el tiempo del socket. */
+    private static void esperarCierre(Socket socket) throws IOException {
+        try {
+            assertEquals(-1, socket.getInputStream().read(), "el servidor no debía responder nada");
+        } catch (SocketTimeoutException e) {
+            throw e;
+        } catch (SocketException e) {
+            // Reinicio de la conexión: también es una conexión liberada.
+        }
+    }
+
+    @Test
+    void unTroceadoMalFormadoEsUn400YNoUnErrorRegistrado() {
+        List<LogRecord> graves = registrosGraves(() -> {
+            String respuesta = http.enviarCrudo(
+                    POST_CUERPO + "Transfer-Encoding: chunked\r\n\r\nZZ\r\nabc\r\n0\r\n\r\n", false);
+
+            assertTrue(respuesta.startsWith("HTTP/1.1 400"), respuesta);
+            assertTrue(respuesta.contains("\"codigo\":\"VALIDACION\""), respuesta);
+            assertFalse(respuesta.contains("chunk"), respuesta);
+        });
+
+        assertEquals(List.of(), graves);
+        assertEquals(200, http.get("/api/eco/1").estado());
+    }
+
+    @Test
+    void unCuerpoTruncadoPorUnClienteQueSeCallaEsUn400YNoUnErrorRegistrado() {
+        List<LogRecord> graves = registrosGraves(() -> {
+            String respuesta = http.enviarCrudo(POST_CUERPO + "Content-Length: 100\r\n\r\n{\"a\":1}", true);
+
+            assertTrue(respuesta.startsWith("HTTP/1.1 400"), respuesta);
+        });
+
+        assertEquals(List.of(), graves);
+        assertEquals(200, http.get("/api/eco/1").estado());
+    }
+
+    @Test
+    void unaConexionCortadaACuerpoMedioNoRegistraErrores() throws Exception {
+        List<LogRecord> graves = registrosGraves(() -> {
+            try (Socket socket = http.abrirSocket()) {
+                socket.getOutputStream().write((POST_CUERPO + "Content-Length: 5000\r\n\r\n{\"a\":")
+                        .getBytes(StandardCharsets.ISO_8859_1));
+                socket.getOutputStream().flush();
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
+            dormir(400);
+        });
+
+        assertEquals(List.of(), graves);
+        assertEquals(200, http.get("/api/eco/1").estado());
+    }
+
+    @Test
+    void unCuerpoQueNoTerminaDeLlegarSeCortaAlVencerElPlazoYLasDemasPeticionesSiguen() throws Exception {
+        try (ClienteHttpPrueba lento = ClienteHttpPrueba.iniciarConPlazo(Duration.ofSeconds(1), rutas(), autenticacion,
+                ORIGEN); Socket parado = lento.abrirSocket()) {
+            long inicio = System.nanoTime();
+            parado.getOutputStream().write((POST_CUERPO + "Content-Length: 1000\r\n\r\nabc")
+                    .getBytes(StandardCharsets.ISO_8859_1));
+            parado.getOutputStream().flush();
+
+            assertEquals(200, lento.get("/api/eco/1").estado(), "mientras tanto el servidor atiende a los demás");
+            esperarCierre(parado);
+
+            long milisegundos = Duration.ofNanos(System.nanoTime() - inicio).toMillis();
+            assertTrue(milisegundos >= 900 && milisegundos < 6000, milisegundos + " ms");
+            assertEquals(200, lento.get("/api/eco/1").estado());
+        }
+    }
+
+    @Test
+    void elCuerpoQueNoTerminaDeLlegarEnUnaRutaRechazadaTambienSeCorta() throws Exception {
+        // Sin sesión se rechaza antes de leer el cuerpo y luego se descarta; ese descarte también tiene plazo.
+        try (ClienteHttpPrueba lento = ClienteHttpPrueba.iniciarConPlazo(Duration.ofSeconds(1), rutas(), autenticacion,
+                ORIGEN); Socket parado = lento.abrirSocket()) {
+            long inicio = System.nanoTime();
+            parado.getOutputStream().write(("POST /api/citas HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n"
+                    + "Content-Length: 1000\r\n\r\nabc").getBytes(StandardCharsets.ISO_8859_1));
+            parado.getOutputStream().flush();
+
+            esperarCierre(parado);
+
+            long milisegundos = Duration.ofNanos(System.nanoTime() - inicio).toMillis();
+            assertTrue(milisegundos >= 900 && milisegundos < 6000, milisegundos + " ms");
+            assertEquals(200, lento.get("/api/eco/1").estado());
+        }
+    }
+
+    @Test
+    void elPlazoNoCortaUnCuerpoLentoPeroCompletoNiLaEjecucionPosteriorDelManejador() throws Exception {
+        try (ClienteHttpPrueba lento = ClienteHttpPrueba.iniciarConPlazo(Duration.ofSeconds(1), rutas(), autenticacion,
+                ORIGEN); Socket socket = lento.abrirSocket()) {
+            socket.getOutputStream().write((POST_CUERPO.replace("/api/cuerpo", "/api/lenta-despues")
+                    + "Content-Length: 7\r\n\r\n{\"a\"").getBytes(StandardCharsets.ISO_8859_1));
+            socket.getOutputStream().flush();
+            dormir(400);
+            socket.getOutputStream().write(":1}".getBytes(StandardCharsets.ISO_8859_1));
+            socket.getOutputStream().flush();
+
+            // El manejador tarda 1,5 s después de leer el cuerpo: más que el plazo, que ya no corre.
+            String respuesta = new String(socket.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+            assertTrue(respuesta.startsWith("HTTP/1.1 200"), respuesta);
+            assertTrue(respuesta.contains("\"ok\":true"), respuesta);
+        }
+    }
+
+    @Test
+    void elPlazoDeLecturaPorDefectoEs30SegundosYElServidorDelJdkCierraLasPeticionesAMedias() {
+        assertEquals(Duration.ofSeconds(30), ServidorHttp.PLAZO_LECTURA);
+        // Para las cabeceras, que llegan antes de que haya un manejador: la propiedad la lee el servidor del JDK.
+        assertEquals("30", System.getProperty("sun.net.httpserver.maxReqTime"));
     }
 
     // ------------------------------------------------------------------ concurrencia

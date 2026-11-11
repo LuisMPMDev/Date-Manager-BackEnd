@@ -1,7 +1,9 @@
 package com.datemanager;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.Socket;
 import java.net.URI;
@@ -15,6 +17,8 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.datemanager.infraestructura.Configuracion;
 import com.datemanager.infraestructura.http.Enrutador;
@@ -61,9 +65,68 @@ public final class ClienteHttpPrueba implements AutoCloseable {
     }
 
     public static ClienteHttpPrueba iniciar(Enrutador rutas, Autenticacion autenticacion, String... origenes) {
-        ServidorHttp servidor = new ServidorHttp(configuracion(Arrays.asList(origenes)), rutas, autenticacion);
+        return iniciarConPlazo(ServidorHttp.PLAZO_LECTURA, rutas, autenticacion, origenes);
+    }
+
+    /** Como {@link #iniciar} pero con otro plazo para recibir el cuerpo de las peticiones. */
+    public static ClienteHttpPrueba iniciarConPlazo(Duration plazoLectura, Enrutador rutas,
+            Autenticacion autenticacion, String... origenes) {
+        ServidorHttp servidor = new ServidorHttp(configuracion(Arrays.asList(origenes)), rutas, autenticacion,
+                plazoLectura);
         servidor.iniciar();
         return new ClienteHttpPrueba(servidor);
+    }
+
+    public int puerto() {
+        return servidor.puerto();
+    }
+
+    /** Un socket conectado al servidor, para enviar bytes a mano (el que lo abre lo cierra). */
+    public Socket abrirSocket() {
+        try {
+            Socket socket = new Socket("127.0.0.1", servidor.puerto());
+            socket.setSoTimeout(10_000);
+            return socket;
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * Envía los bytes tal cual por un socket y devuelve todo lo que el servidor responda hasta que cierre. Con
+     * {@code semicerrar}, cierra antes el sentido de escritura (el cliente "se calla" pero sigue escuchando).
+     */
+    public String enviarCrudo(String peticion, boolean semicerrar) {
+        try (Socket socket = abrirSocket()) {
+            socket.getOutputStream().write(peticion.getBytes(StandardCharsets.ISO_8859_1));
+            socket.getOutputStream().flush();
+            if (semicerrar) {
+                socket.shutdownOutput();
+            }
+            return leerRespuesta(socket.getInputStream());
+        } catch (IOException e) {
+            throw new IllegalStateException("La petición cruda falló: " + e, e);
+        }
+    }
+
+    /** Lee una respuesta HTTP/1.1: hasta que cierren o hasta completar el {@code Content-Length} anunciado. */
+    private static String leerRespuesta(InputStream entrada) throws IOException {
+        ByteArrayOutputStream recibido = new ByteArrayOutputStream();
+        int leido;
+        while ((leido = entrada.read()) >= 0) {
+            recibido.write(leido);
+            String texto = recibido.toString(StandardCharsets.ISO_8859_1);
+            int finCabeceras = texto.indexOf("\r\n\r\n");
+            if (finCabeceras < 0) {
+                continue;
+            }
+            Matcher largo = Pattern
+                    .compile("(?im)^content-length:\\s*(\\d+)").matcher(texto.substring(0, finCabeceras));
+            if (largo.find() && recibido.size() >= finCabeceras + 4 + Integer.parseInt(largo.group(1))) {
+                break;
+            }
+        }
+        return recibido.toString(StandardCharsets.UTF_8);
     }
 
     /** {@code http://127.0.0.1:puerto}, que es también el origen de las peticiones del mismo sitio. */
