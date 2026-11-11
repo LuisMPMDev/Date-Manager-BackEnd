@@ -22,7 +22,7 @@ Para ejecutarlo completo: prepara SQL Server y arranca la API con el perfil `dev
 | 2b · Angular conectado a la API | El Angular usa la API: sesión real, zona pública por enlace y pantalla de Enlaces | [`v2.1-conexion-angular`](https://github.com/LuisMPMDev/Date-Manager-BackEnd/tree/v2.1-conexion-angular) |
 | 3 · Validaciones en la base de datos | La base rechaza por sí misma los datos inválidos (restricciones, disparadores, migraciones seguras) | [`v3.0-validaciones-bd`](https://github.com/LuisMPMDev/Date-Manager-BackEnd/tree/v3.0-validaciones-bd) |
 
-La demo original, sin servidor, se conserva en la rama local `demo-sin-servidor` (no está en este repositorio remoto).
+La demo original, sin servidor, se conserva en la rama [`demo-sin-servidor`](https://github.com/LuisMPMDev/Date-Manager-BackEnd/tree/demo-sin-servidor).
 
 ## Historias de usuario
 

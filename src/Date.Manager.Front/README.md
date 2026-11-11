@@ -2,7 +2,7 @@
 
 Cliente web de la plataforma de reserva de citas, conectado a la API REST de `src/Date.Manager.Back`: una página pública donde el cliente reserva sin cuenta (con un enlace de invitación) y un panel de administración para gestionar servicios, citas, clientes, usuarios, roles y enlaces. Los permisos los decide la API; el menú y las rutas del front solo se adaptan a ellos.
 
-> La demo original, sin servidor (datos en `localStorage`), vive en la rama local `demo-sin-servidor`. Esta versión ya no la incluye.
+> La demo original, sin servidor (datos en `localStorage`), vive en la rama `demo-sin-servidor` de este repositorio. Esta versión ya no la incluye.
 
 ## Requisitos
 
