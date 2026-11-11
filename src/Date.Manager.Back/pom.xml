@@ -26,13 +26,6 @@
             <version>5.12.2</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <!-- Solo para las pruebas de dominio ya existentes, que usan aserciones de AssertJ. -->
-            <groupId>org.assertj</groupId>
-            <artifactId>assertj-core</artifactId>
-            <version>3.27.6</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>

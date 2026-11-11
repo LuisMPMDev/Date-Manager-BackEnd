@@ -1,12 +1,15 @@
 package com.datemanager.dominio;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -30,100 +33,94 @@ class ValidacionesTest {
 
     @Test
     void unServicioValidoNoTieneError() {
-        assertThat(Validaciones.errorServicio(valido())).isEmpty();
+        assertTrue(Validaciones.errorServicio(valido()).isEmpty());
     }
 
     @Test
     void unServicioSinVentanasEsValido() {
-        assertThat(Validaciones.errorServicio(servicio("Masaje", 45, "50000", List.of()))).isEmpty();
+        assertTrue(Validaciones.errorServicio(servicio("Masaje", 45, "50000", List.of())).isEmpty());
     }
 
     @Test
     void valorCeroEsValido() {
-        assertThat(Validaciones.errorServicio(servicio("Masaje", 45, "0", List.of()))).isEmpty();
+        assertTrue(Validaciones.errorServicio(servicio("Masaje", 45, "0", List.of())).isEmpty());
     }
 
     @Test
     void rechazaNombreVacioEnBlancoONulo() {
         for (String nombre : new String[] {"", "   ", null}) {
-            assertThat(Validaciones.errorServicio(servicio(nombre, 45, "50000", List.of())))
-                    .contains("Escribe el nombre del servicio.");
+            assertEquals(Optional.of("Escribe el nombre del servicio."),
+                Validaciones.errorServicio(servicio(nombre, 45, "50000", List.of())));
         }
     }
 
     @Test
     void aceptaHastaVeinticuatroHorasYRechazaMas() {
-        assertThat(Validaciones.errorServicio(servicio("Masaje", 1440, "50000", List.of()))).isEmpty();
+        assertTrue(Validaciones.errorServicio(servicio("Masaje", 1440, "50000", List.of())).isEmpty());
         for (int duracion : new int[] {1441, Integer.MAX_VALUE}) {
-            assertThat(Validaciones.errorServicio(servicio("Masaje", duracion, "50000", List.of())))
-                    .contains("La duración no puede superar 24 horas (1440 minutos).");
+            assertEquals(Optional.of("La duración no puede superar 24 horas (1440 minutos)."),
+                Validaciones.errorServicio(servicio("Masaje", duracion, "50000", List.of())));
         }
     }
 
     @Test
     void rechazaDuracionCeroONegativa() {
         for (int duracion : new int[] {0, -30}) {
-            assertThat(Validaciones.errorServicio(servicio("Masaje", duracion, "50000", List.of())))
-                    .contains("La duración debe ser un número entero de minutos mayor que cero.");
+            assertEquals(Optional.of("La duración debe ser un número entero de minutos mayor que cero."),
+                Validaciones.errorServicio(servicio("Masaje", duracion, "50000", List.of())));
         }
     }
 
     @Test
     void rechazaValorNegativoONulo() {
-        assertThat(Validaciones.errorServicio(servicio("Masaje", 45, "-1", List.of())))
-                .contains("El valor no puede ser negativo.");
-        assertThat(Validaciones.errorServicio(new Servicio(UUID.randomUUID(), "Masaje", 45, true, null, List.of())))
-                .contains("El valor no puede ser negativo.");
+        assertEquals(Optional.of("El valor no puede ser negativo."),
+                Validaciones.errorServicio(servicio("Masaje", 45, "-1", List.of())));
+        assertEquals(Optional.of("El valor no puede ser negativo."),
+                Validaciones.errorServicio(new Servicio(UUID.randomUUID(), "Masaje", 45, true, null, List.of())));
     }
 
     @Test
     void rechazaVentanaConFinIgualOAnteriorAlInicio() {
-        assertThat(Validaciones.errorServicio(conVentanas(ventana(2, "10:00", "10:00"))))
-                .contains("Martes: la hora de fin debe ser posterior a la de inicio.");
-        assertThat(Validaciones.errorServicio(conVentanas(ventana(2, "12:00", "09:00")))).isPresent();
+        assertEquals(Optional.of("Martes: la hora de fin debe ser posterior a la de inicio."),
+                Validaciones.errorServicio(conVentanas(ventana(2, "10:00", "10:00"))));
+        assertTrue(Validaciones.errorServicio(conVentanas(ventana(2, "12:00", "09:00"))).isPresent());
     }
 
     @Test
     void rechazaVentanaSinHoras() {
-        assertThat(Validaciones.errorServicio(conVentanas(
-                new VentanaDisponibilidad(UUID.randomUUID(), 2, null, LocalTime.parse("10:00")))))
-                .contains("Martes: escribe la hora de inicio y de fin de la ventana.");
+        assertEquals(Optional.of("Martes: escribe la hora de inicio y de fin de la ventana."),
+                Validaciones.errorServicio(conVentanas(
+                new VentanaDisponibilidad(UUID.randomUUID(), 2, null, LocalTime.parse("10:00")))));
     }
 
     @Test
     void elMensajeDeUnaVentanaInvalidaNombraSuDia() {
-        assertThat(Validaciones.errorServicio(conVentanas(ventana(3, "10:00", "09:00"))).orElseThrow())
-                .contains("Miércoles");
+        assertTrue(Validaciones.errorServicio(conVentanas(ventana(3, "10:00", "09:00"))).orElseThrow().contains("Miércoles"));
     }
 
     @Test
     void rechazaVentanasQueSeCruzanNombrandoDiaYHoras() {
         String mensaje = Validaciones.errorServicio(
                 conVentanas(ventana(2, "09:00", "12:00"), ventana(2, "11:00", "14:00"))).orElseThrow();
-        assertThat(mensaje).isEqualTo("Martes: las ventanas 09:00–12:00 y 11:00–14:00 se cruzan. "
-                + "Ajusta las horas para que una termine donde empieza la otra o antes.");
+        assertEquals("Martes: las ventanas 09:00–12:00 y 11:00–14:00 se cruzan. "
+                + "Ajusta las horas para que una termine donde empieza la otra o antes.", mensaje);
     }
 
     @Test
     void rechazaUnaVentanaContenidaEnOtraAunqueEstenEnOtroOrden() {
-        assertThat(Validaciones.errorServicio(conVentanas(ventana(3, "10:00", "11:00"), ventana(3, "08:00", "13:00"))))
-                .isPresent();
+        assertTrue(Validaciones.errorServicio(conVentanas(ventana(3, "10:00", "11:00"), ventana(3, "08:00", "13:00"))).isPresent());
     }
 
     @Test
     void rechazaVentanasIdenticasRepetidas() {
-        assertThat(Validaciones.errorServicio(conVentanas(ventana(1, "09:00", "12:00"), ventana(1, "09:00", "12:00"))))
-                .isPresent();
+        assertTrue(Validaciones.errorServicio(conVentanas(ventana(1, "09:00", "12:00"), ventana(1, "09:00", "12:00"))).isPresent());
     }
 
     @Test
     void permiteVentanasQueSeTocanOEstanEnDiasDistintos() {
-        assertThat(Validaciones.errorServicio(conVentanas(ventana(2, "09:00", "12:00"), ventana(2, "12:00", "15:00"))))
-                .isEmpty();
-        assertThat(Validaciones.errorServicio(conVentanas(ventana(2, "09:00", "12:00"), ventana(3, "10:00", "13:00"))))
-                .isEmpty();
-        assertThat(Validaciones.errorServicio(conVentanas(ventana(2, "15:00", "18:00"), ventana(2, "09:00", "13:00"))))
-                .isEmpty();
+        assertTrue(Validaciones.errorServicio(conVentanas(ventana(2, "09:00", "12:00"), ventana(2, "12:00", "15:00"))).isEmpty());
+        assertTrue(Validaciones.errorServicio(conVentanas(ventana(2, "09:00", "12:00"), ventana(3, "10:00", "13:00"))).isEmpty());
+        assertTrue(Validaciones.errorServicio(conVentanas(ventana(2, "15:00", "18:00"), ventana(2, "09:00", "13:00"))).isEmpty());
     }
 
     @Test
@@ -132,35 +129,35 @@ class ValidacionesTest {
                 new ArrayList<>(List.of(ventana(2, "15:00", "18:00"), ventana(2, "09:00", "13:00")));
         Servicio s = servicio("Masaje", 45, "50000", original);
         Validaciones.errorServicio(s);
-        assertThat(s.ventanas()).containsExactlyElementsOf(original);
+        assertEquals(original, s.ventanas());
     }
 
     @Test
     void aceptaCorreosNormalesConEspaciosAlrededor() {
         for (String c : new String[] {"nombre@correo.com", "a.b+c@sub.dominio.co", " ana@correo.com ", "a@b.co"}) {
-            assertThat(Validaciones.esCorreoValido(c)).as(c).isTrue();
+            assertTrue(Validaciones.esCorreoValido(c), c);
         }
     }
 
     @Test
     void rechazaLoQueNoTieneFormaDeCorreo() {
         for (String c : new String[] {"", "sin-arroba", "a@b", "a@b.", "a@.com", "a@b..c", "a b@c.co", "a@@c.com", "@c.com"}) {
-            assertThat(Validaciones.esCorreoValido(c)).as(c).isFalse();
+            assertFalse(Validaciones.esCorreoValido(c), c);
         }
-        assertThat(Validaciones.esCorreoValido(null)).isFalse();
+        assertFalse(Validaciones.esCorreoValido(null));
     }
 
     @Test
     void normalizaCorreoYUsuarioConTrimYMinusculas() {
-        assertThat(Validaciones.normalizarUsuario(" Marta ")).isEqualTo("marta");
-        assertThat(Validaciones.normalizarCorreo("  Ana@Correo.COM ")).isEqualTo("ana@correo.com");
-        assertThat(Validaciones.normalizarUsuario("MARTA")).isEqualTo(Validaciones.normalizarUsuario("marta "));
+        assertEquals("marta", Validaciones.normalizarUsuario(" Marta "));
+        assertEquals("ana@correo.com", Validaciones.normalizarCorreo("  Ana@Correo.COM "));
+        assertEquals(Validaciones.normalizarUsuario("marta "), Validaciones.normalizarUsuario("MARTA"));
     }
 
     @Test
     void normalizarNuloDevuelveVacio() {
-        assertThat(Validaciones.normalizarUsuario(null)).isEmpty();
-        assertThat(Validaciones.normalizarCorreo(null)).isEmpty();
+        assertTrue(Validaciones.normalizarUsuario(null).isEmpty());
+        assertTrue(Validaciones.normalizarCorreo(null).isEmpty());
     }
 
     @Test
@@ -168,7 +165,7 @@ class ValidacionesTest {
         Locale anterior = Locale.getDefault();
         try {
             Locale.setDefault(Locale.forLanguageTag("tr-TR"));
-            assertThat(Validaciones.normalizarUsuario("MARTIN")).isEqualTo("martin");
+            assertEquals("martin", Validaciones.normalizarUsuario("MARTIN"));
         } finally {
             Locale.setDefault(anterior);
         }

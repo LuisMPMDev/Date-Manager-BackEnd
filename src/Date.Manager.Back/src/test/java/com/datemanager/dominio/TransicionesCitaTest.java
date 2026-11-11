@@ -1,8 +1,11 @@
 package com.datemanager.dominio;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -23,10 +26,10 @@ class TransicionesCitaTest {
     }
 
     private static void assertError(Runnable accion, CodigoError esperado) {
-        assertThatThrownBy(accion::run).isInstanceOfSatisfying(ErrorNegocio.class, e -> {
-            assertThat(e.codigo()).isEqualTo(esperado);
-            assertThat(e.getMessage()).isNotBlank();
-        });
+        ErrorNegocio e = assertThrows(ErrorNegocio.class, accion::run);
+        assertEquals(esperado, e.codigo());
+        assertNotNull(e.getMessage());
+        assertFalse(e.getMessage().isBlank());
     }
 
     @Test
@@ -35,14 +38,15 @@ class TransicionesCitaTest {
 
         Cita atendida = TransicionesCita.atender(original, INICIO.plusMinutes(5));
 
-        assertThat(atendida.estado()).isEqualTo(EstadoCita.Atendida);
-        assertThat(atendida).usingRecursiveComparison().ignoringFields("estado").isEqualTo(original);
+        assertEquals(EstadoCita.Atendida, atendida.estado());
+        assertEquals(new Cita(original.id(), original.servicioId(), original.clienteId(), original.fecha(),
+                original.inicio(), original.fin(), EstadoCita.Atendida, original.creadaEn(), original.canceladaEn()),
+                atendida);
     }
 
     @Test
     void atenderEnElInstanteExactoDeInicioEsValido() {
-        assertThat(TransicionesCita.atender(cita(EstadoCita.Confirmada, null), INICIO).estado())
-                .isEqualTo(EstadoCita.Atendida);
+        assertEquals(EstadoCita.Atendida, TransicionesCita.atender(cita(EstadoCita.Confirmada, null), INICIO).estado());
     }
 
     @Test
@@ -73,16 +77,17 @@ class TransicionesCitaTest {
 
         Cita cancelada = TransicionesCita.cancelar(original, AHORA);
 
-        assertThat(cancelada.estado()).isEqualTo(EstadoCita.Cancelada);
-        assertThat(cancelada.canceladaEn()).isEqualTo(AHORA);
-        assertThat(cancelada).usingRecursiveComparison().ignoringFields("estado", "canceladaEn").isEqualTo(original);
+        assertEquals(EstadoCita.Cancelada, cancelada.estado());
+        assertEquals(AHORA, cancelada.canceladaEn());
+        assertEquals(new Cita(original.id(), original.servicioId(), original.clienteId(), original.fecha(),
+                original.inicio(), original.fin(), EstadoCita.Cancelada, original.creadaEn(), AHORA), cancelada);
     }
 
     @Test
     void cancelarUnaYaCanceladaLaDevuelveIgualSinError() {
         Cita yaCancelada = cita(EstadoCita.Cancelada, Instant.parse("2026-11-05T09:00:00Z"));
 
-        assertThat(TransicionesCita.cancelar(yaCancelada, AHORA)).isSameAs(yaCancelada);
+        assertSame(yaCancelada, TransicionesCita.cancelar(yaCancelada, AHORA));
     }
 
     @Test
@@ -93,7 +98,7 @@ class TransicionesCitaTest {
 
     @Test
     void soloUnaConfirmadaEsMovible() {
-        assertThatCode(() -> TransicionesCita.validarMovible(cita(EstadoCita.Confirmada, null))).doesNotThrowAnyException();
+        assertDoesNotThrow(() -> TransicionesCita.validarMovible(cita(EstadoCita.Confirmada, null)));
         assertError(() -> TransicionesCita.validarMovible(cita(EstadoCita.Cancelada, AHORA)), CodigoError.ESTADO_INVALIDO);
         assertError(() -> TransicionesCita.validarMovible(cita(EstadoCita.Atendida, null)), CodigoError.ESTADO_INVALIDO);
     }

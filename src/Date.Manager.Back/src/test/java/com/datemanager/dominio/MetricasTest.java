@@ -1,7 +1,8 @@
 package com.datemanager.dominio;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.within;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -28,6 +29,10 @@ class MetricasTest {
     private static final UUID S1 = UUID.randomUUID();
     private static final UUID OTRO = UUID.randomUUID();
     private static final Instant CREADA = Instant.parse("2026-11-01T10:00:00Z");
+
+    private static void assertIgualPorComparacion(String esperado, BigDecimal actual) {
+        assertEquals(0, new BigDecimal(esperado).compareTo(actual), "esperado " + esperado + " pero fue " + actual);
+    }
 
     private static Servicio servicio(UUID id, boolean activo, List<VentanaDisponibilidad> ventanas) {
         return new Servicio(id, "Corte", 60, activo, new BigDecimal("10000.00"), ventanas);
@@ -71,36 +76,35 @@ class MetricasTest {
 
     @Test
     void sesentaMinutosDeCitaSobreDoscientosCuarentaDeVentanaEs025() {
-        assertThat(Metricas.ocupacion(List.of(servicio()), List.of(cita()), LUNES)).isEqualTo(0.25);
+        assertEquals(0.25, Metricas.ocupacion(List.of(servicio()), List.of(cita()), LUNES));
     }
 
     @Test
     void unaCitaCanceladaNoCuenta() {
-        assertThat(Metricas.ocupacion(List.of(servicio()), List.of(cancelada(CREADA)), LUNES)).isEqualTo(0);
+        assertEquals(0, Metricas.ocupacion(List.of(servicio()), List.of(cancelada(CREADA)), LUNES));
     }
 
     @Test
     void unaCitaAtendidaCuenta() {
         Cita atendida = cita(LUNES, "09:00", "10:00", EstadoCita.Atendida);
-        assertThat(Metricas.ocupacion(List.of(servicio()), List.of(atendida), LUNES)).isEqualTo(0.25);
+        assertEquals(0.25, Metricas.ocupacion(List.of(servicio()), List.of(atendida), LUNES));
     }
 
     @Test
     void sinVentanasEsCeroYNoNaN() {
         double r = Metricas.ocupacion(List.of(servicio(S1, true, List.of())), List.of(cita()), LUNES);
-        assertThat(r).isEqualTo(0);
-        assertThat(Double.isNaN(r)).isFalse();
+        assertEquals(0, r);
+        assertFalse(Double.isNaN(r));
     }
 
     @Test
     void sinServiciosEsCero() {
-        assertThat(Metricas.ocupacion(List.of(), List.of(cita()), LUNES)).isEqualTo(0);
+        assertEquals(0, Metricas.ocupacion(List.of(), List.of(cita()), LUNES));
     }
 
     @Test
     void ignoraServiciosInactivos() {
-        assertThat(Metricas.ocupacion(List.of(servicio(S1, false, servicio().ventanas())), List.of(cita()), LUNES))
-                .isEqualTo(0);
+        assertEquals(0, Metricas.ocupacion(List.of(servicio(S1, false, servicio().ventanas())), List.of(cita()), LUNES));
     }
 
     @Test
@@ -108,14 +112,14 @@ class MetricasTest {
         UUID inactivo = UUID.randomUUID();
         List<Servicio> servicios = List.of(servicio(), servicio(inactivo, false, servicio().ventanas()));
         List<Cita> citas = List.of(conServicio(cita(LUNES, "09:00", "11:00", EstadoCita.Confirmada), inactivo));
-        assertThat(Metricas.ocupacion(servicios, citas, LUNES)).isEqualTo(0);
+        assertEquals(0, Metricas.ocupacion(servicios, citas, LUNES));
     }
 
     @Test
     void unDiaSinVentanasEseDiaDeLaSemanaEsCero() {
         LocalDate martes = LocalDate.of(2026, 11, 10);
-        assertThat(Metricas.ocupacion(List.of(servicio()), List.of(cita(martes, "09:00", "10:00",
-                EstadoCita.Confirmada)), martes)).isEqualTo(0);
+        assertEquals(0, Metricas.ocupacion(List.of(servicio()), List.of(cita(martes, "09:00", "10:00",
+                EstadoCita.Confirmada)), martes));
     }
 
     @Test
@@ -124,14 +128,14 @@ class MetricasTest {
         List<Servicio> servicios = List.of(servicio(), servicio(b, true, List.of(ventana(1, "08:00", "10:00"))));
         List<Cita> citas = List.of(cita(), conServicio(cita(LUNES, "08:00", "09:00", EstadoCita.Confirmada), b));
         // 120 ocupados de 240 + 120 = 360 disponibles
-        assertThat(Metricas.ocupacion(servicios, citas, LUNES)).isCloseTo(120.0 / 360, within(1e-12));
+        assertEquals(120.0 / 360, Metricas.ocupacion(servicios, citas, LUNES), 1e-12);
     }
 
     @Test
     void unaCitaDeOtroDiaNoCuentaEnLaOcupacionDeHoy() {
         Cita ayer = cita(LUNES.minusDays(1), "09:00", "10:00", EstadoCita.Confirmada);
         Cita lunesPasado = cita(LUNES.minusDays(7), "09:00", "13:00", EstadoCita.Confirmada);
-        assertThat(Metricas.ocupacion(List.of(servicio()), List.of(ayer, lunesPasado), LUNES)).isEqualTo(0);
+        assertEquals(0, Metricas.ocupacion(List.of(servicio()), List.of(ayer, lunesPasado), LUNES));
     }
 
     // ---------- ocupacionServicio ----------
@@ -142,33 +146,32 @@ class MetricasTest {
                 cita(LocalDate.of(2026, 11, 9), "09:00", "10:00", EstadoCita.Confirmada),
                 cita(LocalDate.of(2026, 11, 16), "09:00", "11:00", EstadoCita.Confirmada));
         // dos lunes: 480 min disponibles, 60 + 120 ocupados
-        assertThat(Metricas.ocupacionServicio(servicio(), citas, LocalDate.of(2026, 11, 9), LocalDate.of(2026, 11, 16)))
-                .isCloseTo(180.0 / 480, within(1e-12));
+        assertEquals(180.0 / 480,
+                Metricas.ocupacionServicio(servicio(), citas, LocalDate.of(2026, 11, 9), LocalDate.of(2026, 11, 16)),
+                1e-12);
     }
 
     @Test
     void soloCuentaCitasDeEseServicio() {
-        assertThat(Metricas.ocupacionServicio(servicio(), List.of(conServicio(cita(), OTRO)), LUNES, LUNES))
-                .isEqualTo(0);
+        assertEquals(0, Metricas.ocupacionServicio(servicio(), List.of(conServicio(cita(), OTRO)), LUNES, LUNES));
     }
 
     @Test
     void laOcupacionDeUnServicioInactivoEsCero() {
-        assertThat(Metricas.ocupacionServicio(servicio(S1, false, servicio().ventanas()), List.of(cita()), LUNES,
-                LUNES)).isEqualTo(0);
+        assertEquals(0, Metricas.ocupacionServicio(servicio(S1, false, servicio().ventanas()), List.of(cita()), LUNES,
+                LUNES));
     }
 
     @Test
     void unRangoInvertidoNoDaNaN() {
         double r = Metricas.ocupacionServicio(servicio(), List.of(cita()), LUNES, LUNES.minusDays(1));
-        assertThat(r).isEqualTo(0);
+        assertEquals(0, r);
     }
 
     @Test
     void laCitaFueraDelRangoNoCuenta() {
         Cita fuera = cita(LUNES.plusDays(7), "09:00", "13:00", EstadoCita.Confirmada);
-        assertThat(Metricas.ocupacionServicio(servicio(), List.of(cita(), fuera), LUNES, LUNES.plusDays(6)))
-                .isEqualTo(0.25);
+        assertEquals(0.25, Metricas.ocupacionServicio(servicio(), List.of(cita(), fuera), LUNES, LUNES.plusDays(6)));
     }
 
     // ---------- ingresosEstimados ----------
@@ -177,8 +180,7 @@ class MetricasTest {
     void sumaLosValoresDeLasCitasNoCanceladasDelRango() {
         List<Cita> citas = List.of(cita(), cita(LocalDate.of(2026, 11, 10), "09:00", "10:00", EstadoCita.Confirmada),
                 cancelada(CREADA));
-        assertThat(Metricas.ingresosEstimados(List.of(servicio()), citas, LUNES, LocalDate.of(2026, 11, 10)))
-                .isEqualByComparingTo("20000");
+        assertIgualPorComparacion("20000", Metricas.ingresosEstimados(List.of(servicio()), citas, LUNES, LocalDate.of(2026, 11, 10)));
     }
 
     @Test
@@ -187,8 +189,7 @@ class MetricasTest {
         for (int dia = 8; dia <= 11; dia++) {
             citas.add(cita(LocalDate.of(2026, 11, dia), "09:00", "10:00", EstadoCita.Confirmada));
         }
-        assertThat(Metricas.ingresosEstimados(List.of(servicio()), citas, LUNES, LocalDate.of(2026, 11, 10)))
-                .isEqualByComparingTo("20000");
+        assertIgualPorComparacion("20000", Metricas.ingresosEstimados(List.of(servicio()), citas, LUNES, LocalDate.of(2026, 11, 10)));
     }
 
     @Test
@@ -199,25 +200,23 @@ class MetricasTest {
             citas.add(cita());
         }
         // con double 0.1 + 0.1 + 0.1 = 0.30000000000000004
-        assertThat(Metricas.ingresosEstimados(List.of(barato), citas, LUNES, LUNES)).isEqualTo(new BigDecimal("0.30"));
+        assertEquals(new BigDecimal("0.30"), Metricas.ingresosEstimados(List.of(barato), citas, LUNES, LUNES));
     }
 
     @Test
     void ingresosSinCitasEsCero() {
-        assertThat(Metricas.ingresosEstimados(List.of(servicio()), List.of(), LUNES, LUNES)).isEqualByComparingTo("0");
+        assertIgualPorComparacion("0", Metricas.ingresosEstimados(List.of(servicio()), List.of(), LUNES, LUNES));
     }
 
     @Test
     void unaCitaDeUnServicioDesconocidoSumaCero() {
-        assertThat(Metricas.ingresosEstimados(List.of(servicio()), List.of(conServicio(cita(), OTRO)), LUNES, LUNES))
-                .isEqualByComparingTo("0");
+        assertIgualPorComparacion("0", Metricas.ingresosEstimados(List.of(servicio()), List.of(conServicio(cita(), OTRO)), LUNES, LUNES));
     }
 
     @Test
     void ingresosCuentaLasAtendidas() {
         Cita atendida = cita(LUNES, "09:00", "10:00", EstadoCita.Atendida);
-        assertThat(Metricas.ingresosEstimados(List.of(servicio()), List.of(atendida), LUNES, LUNES))
-                .isEqualByComparingTo("10000");
+        assertIgualPorComparacion("10000", Metricas.ingresosEstimados(List.of(servicio()), List.of(atendida), LUNES, LUNES));
     }
 
     // ---------- citasPorDia ----------
@@ -226,17 +225,18 @@ class MetricasTest {
     void devuelveCerosParaDiasVaciosYCuentaLasNoCanceladas() {
         List<Cita> citas = List.of(cita(), cita(), cancelada(CREADA),
                 cita(LocalDate.of(2026, 11, 11), "09:00", "10:00", EstadoCita.Confirmada));
-        assertThat(Metricas.citasPorDia(citas, LocalDate.of(2026, 11, 9), LocalDate.of(2026, 11, 11))).containsExactly(
+        assertEquals(List.of(
                 new CitasDia(LocalDate.of(2026, 11, 9), 2),
                 new CitasDia(LocalDate.of(2026, 11, 10), 0),
-                new CitasDia(LocalDate.of(2026, 11, 11), 1));
+                new CitasDia(LocalDate.of(2026, 11, 11), 1)),
+                Metricas.citasPorDia(citas, LocalDate.of(2026, 11, 9), LocalDate.of(2026, 11, 11)));
     }
 
     @Test
     void citasPorDiaCruzaElFinDeMes() {
-        assertThat(Metricas.citasPorDia(List.of(), LocalDate.of(2026, 11, 29), LocalDate.of(2026, 12, 1)))
-                .extracting(CitasDia::fecha)
-                .containsExactly(LocalDate.of(2026, 11, 29), LocalDate.of(2026, 11, 30), LocalDate.of(2026, 12, 1));
+        assertEquals(List.of(LocalDate.of(2026, 11, 29), LocalDate.of(2026, 11, 30), LocalDate.of(2026, 12, 1)),
+                Metricas.citasPorDia(List.of(), LocalDate.of(2026, 11, 29), LocalDate.of(2026, 12, 1)).stream()
+                        .map(CitasDia::fecha).toList());
     }
 
     // ---------- alertas ----------
@@ -245,87 +245,85 @@ class MetricasTest {
     void unServicioActivoSinVentanasGeneraUnaAlerta() {
         UUID x = UUID.randomUUID();
         List<Alerta> r = Metricas.alertas(List.of(servicio(x, true, List.of())), List.of(), AHORA);
-        assertThat(r).hasSize(1);
-        assertThat(r.get(0).tipo()).isEqualTo(TipoAlerta.SERVICIO_SIN_HORARIO);
-        assertThat(r.get(0).ref()).isEqualTo(x);
-        assertThat(r.get(0).titulo()).isEqualTo("Servicio sin horario");
-        assertThat(r.get(0).detalle()).isEqualTo("Corte no tiene horarios de atención");
+        assertEquals(1, r.size());
+        assertEquals(TipoAlerta.SERVICIO_SIN_HORARIO, r.get(0).tipo());
+        assertEquals(x, r.get(0).ref());
+        assertEquals("Servicio sin horario", r.get(0).titulo());
+        assertEquals("Corte no tiene horarios de atención", r.get(0).detalle());
     }
 
     @Test
     void unServicioInactivoSinVentanasNoGeneraAlerta() {
-        assertThat(Metricas.alertas(List.of(servicio(S1, false, List.of())), List.of(), AHORA)).isEmpty();
+        assertTrue(Metricas.alertas(List.of(servicio(S1, false, List.of())), List.of(), AHORA).isEmpty());
     }
 
     @Test
     void unServicioActivoConVentanasPeroSinVentanaHoyNoGeneraAlerta() {
-        assertThat(Metricas.alertas(List.of(servicio()), List.of(), AHORA)).isEmpty();
+        assertTrue(Metricas.alertas(List.of(servicio()), List.of(), AHORA).isEmpty());
     }
 
     @Test
     void unaCitaCreadaHace2HEsCitaNueva() {
         Cita c = conCreada(cita(), AHORA.minus(Duration.ofHours(2)));
         List<Alerta> r = Metricas.alertas(List.of(servicio()), List.of(c), AHORA);
-        assertThat(r).hasSize(1);
-        assertThat(r.get(0).tipo()).isEqualTo(TipoAlerta.CITA_NUEVA);
-        assertThat(r.get(0).ref()).isEqualTo(c.id());
-        assertThat(r.get(0).titulo()).isEqualTo("Cita nueva");
+        assertEquals(1, r.size());
+        assertEquals(TipoAlerta.CITA_NUEVA, r.get(0).tipo());
+        assertEquals(c.id(), r.get(0).ref());
+        assertEquals("Cita nueva", r.get(0).titulo());
     }
 
     @Test
     void elDetalleEscribeLaFechaEnEspanolNoEnIso() {
         Cita c = conCreada(cita(LocalDate.of(2026, 11, 8), "09:00", "10:00", EstadoCita.Confirmada),
                 AHORA.minus(Duration.ofHours(2)));
-        assertThat(Metricas.alertas(List.of(servicio()), List.of(c), AHORA).get(0).detalle())
-                .isEqualTo("Corte, Domingo 8 de noviembre a las 09:00");
+        assertEquals("Corte, Domingo 8 de noviembre a las 09:00", Metricas.alertas(List.of(servicio()), List.of(c), AHORA).get(0).detalle());
     }
 
     @Test
     void elDetalleUsaServicioSiElServicioNoSeConoce() {
         Cita c = conCreada(conServicio(cita(), OTRO), AHORA.minus(Duration.ofHours(2)));
-        assertThat(Metricas.alertas(List.of(servicio()), List.of(c), AHORA).get(0).detalle())
-                .isEqualTo("Servicio, Lunes 9 de noviembre a las 09:00");
+        assertEquals("Servicio, Lunes 9 de noviembre a las 09:00", Metricas.alertas(List.of(servicio()), List.of(c), AHORA).get(0).detalle());
     }
 
     @Test
     void unaCitaCreadaHace30HNoGeneraAlerta() {
         Cita c = conCreada(cita(), AHORA.minus(Duration.ofHours(30)));
-        assertThat(Metricas.alertas(List.of(servicio()), List.of(c), AHORA)).isEmpty();
+        assertTrue(Metricas.alertas(List.of(servicio()), List.of(c), AHORA).isEmpty());
     }
 
     @Test
     void creadaJustoHace24HYaNoEsReciente() {
         Cita limite = conCreada(cita(), AHORA.minus(Duration.ofHours(24)));
         Cita casi = conCreada(cita(), AHORA.minus(Duration.ofHours(24)).plusMillis(1));
-        assertThat(Metricas.alertas(List.of(servicio()), List.of(limite), AHORA)).isEmpty();
-        assertThat(Metricas.alertas(List.of(servicio()), List.of(casi), AHORA)).hasSize(1);
+        assertTrue(Metricas.alertas(List.of(servicio()), List.of(limite), AHORA).isEmpty());
+        assertEquals(1, Metricas.alertas(List.of(servicio()), List.of(casi), AHORA).size());
     }
 
     @Test
     void unaCitaCreadaEnElFuturoNoGeneraAlerta() {
         Cita c = conCreada(cita(), AHORA.plusSeconds(1));
-        assertThat(Metricas.alertas(List.of(servicio()), List.of(c), AHORA)).isEmpty();
+        assertTrue(Metricas.alertas(List.of(servicio()), List.of(c), AHORA).isEmpty());
     }
 
     @Test
     void unaCitaCanceladaHace3HEsCitaCancelada() {
         Cita c = cancelada(AHORA.minus(Duration.ofHours(3)));
         List<Alerta> r = Metricas.alertas(List.of(servicio()), List.of(c), AHORA);
-        assertThat(r).hasSize(1);
-        assertThat(r.get(0).tipo()).isEqualTo(TipoAlerta.CITA_CANCELADA);
-        assertThat(r.get(0).ref()).isEqualTo(c.id());
-        assertThat(r.get(0).titulo()).isEqualTo("Cita cancelada");
+        assertEquals(1, r.size());
+        assertEquals(TipoAlerta.CITA_CANCELADA, r.get(0).tipo());
+        assertEquals(c.id(), r.get(0).ref());
+        assertEquals("Cita cancelada", r.get(0).titulo());
     }
 
     @Test
     void unaCitaCanceladaHace30HNoGeneraAlertaNiSiSeCreoHaceUnRato() {
         Cita c = conCreada(cancelada(AHORA.minus(Duration.ofHours(30))), AHORA.minus(Duration.ofHours(1)));
-        assertThat(Metricas.alertas(List.of(servicio()), List.of(c), AHORA)).isEmpty();
+        assertTrue(Metricas.alertas(List.of(servicio()), List.of(c), AHORA).isEmpty());
     }
 
     @Test
     void unaCitaCanceladaSinFechaDeCancelacionNoGeneraAlerta() {
-        assertThat(Metricas.alertas(List.of(servicio()), List.of(cancelada(null)), AHORA)).isEmpty();
+        assertTrue(Metricas.alertas(List.of(servicio()), List.of(cancelada(null)), AHORA).isEmpty());
     }
 
     @Test
@@ -333,7 +331,8 @@ class MetricasTest {
         Cita c = conCreada(cita(), AHORA.minus(Duration.ofHours(1)));
         List<Alerta> r = Metricas.alertas(List.of(servicio(), servicio(UUID.randomUUID(), true, List.of())),
                 List.of(c), AHORA);
-        assertThat(r).extracting(Alerta::tipo).containsExactly(TipoAlerta.CITA_NUEVA, TipoAlerta.SERVICIO_SIN_HORARIO);
+        assertEquals(List.of(TipoAlerta.CITA_NUEVA, TipoAlerta.SERVICIO_SIN_HORARIO),
+                r.stream().map(Alerta::tipo).toList());
     }
 
     @Test
@@ -342,38 +341,38 @@ class MetricasTest {
         for (int i = 0; i < 9; i++) {
             todas.add(new Alerta(TipoAlerta.CITA_NUEVA, "Cita nueva", "d" + i, UUID.randomUUID()));
         }
-        assertThat(Metricas.MAX_ALERTAS).isEqualTo(6);
-        assertThat(Metricas.limitarAlertas(todas)).isEqualTo(todas.subList(0, 6));
-        assertThat(Metricas.limitarAlertas(todas.subList(0, 3))).isEqualTo(todas.subList(0, 3));
-        assertThat(Metricas.limitarAlertas(List.of())).isEmpty();
+        assertEquals(6, Metricas.MAX_ALERTAS);
+        assertEquals(todas.subList(0, 6), Metricas.limitarAlertas(todas));
+        assertEquals(todas.subList(0, 3), Metricas.limitarAlertas(todas.subList(0, 3)));
+        assertTrue(Metricas.limitarAlertas(List.of()).isEmpty());
     }
 
     // ---------- variacion ----------
 
     @Test
     void variacionConPrevioCeroEsVacia() {
-        assertThat(Metricas.variacion(5, 0)).isEqualTo(OptionalDouble.empty());
-        assertThat(Metricas.variacion(0, 0)).isEmpty();
+        assertEquals(OptionalDouble.empty(), Metricas.variacion(5, 0));
+        assertTrue(Metricas.variacion(0, 0).isEmpty());
     }
 
     @Test
     void doceContraDiezEs02() {
-        assertThat(Metricas.variacion(12, 10).getAsDouble()).isCloseTo(0.2, within(1e-10));
+        assertEquals(0.2, Metricas.variacion(12, 10).getAsDouble(), 1e-10);
     }
 
     @Test
     void unaBajaEsNegativa() {
-        assertThat(Metricas.variacion(5, 10).getAsDouble()).isCloseTo(-0.5, within(1e-10));
+        assertEquals(-0.5, Metricas.variacion(5, 10).getAsDouble(), 1e-10);
     }
 
     @Test
     void veinticincoContraDoceYMedioEsCienPorCiento() {
-        assertThat(Metricas.variacion(25, 12.5).getAsDouble()).isCloseTo(1.0, within(1e-10));
+        assertEquals(1.0, Metricas.variacion(25, 12.5).getAsDouble(), 1e-10);
     }
 
     @Test
     void variacionDeCeroContraAlgoEsMenosCienPorCiento() {
-        assertThat(Metricas.variacion(0, 4).getAsDouble()).isCloseTo(-1.0, within(1e-10));
+        assertEquals(-1.0, Metricas.variacion(0, 4).getAsDouble(), 1e-10);
     }
 
     // ---------- proximasCitas ----------
@@ -396,17 +395,16 @@ class MetricasTest {
                 confirmada("2026-11-13", "09:00"),
                 confirmada("2026-11-14", "09:00"),
                 confirmada("2026-11-15", "09:00"));
-        assertThat(Metricas.proximasCitas(citas, LOCAL, 5))
-                .extracting(c -> c.fecha() + " " + c.inicio())
-                .containsExactly("2026-11-09 08:00", "2026-11-09 10:00", "2026-11-12 09:00", "2026-11-13 09:00",
-                        "2026-11-14 09:00");
+        assertEquals(List.of("2026-11-09 08:00", "2026-11-09 10:00", "2026-11-12 09:00", "2026-11-13 09:00",
+                "2026-11-14 09:00"),
+                Metricas.proximasCitas(citas, LOCAL, 5).stream().map(c -> c.fecha() + " " + c.inicio()).toList());
     }
 
     @Test
     void sinCitasConfirmadasPorDelanteNoHayProximas() {
         List<Cita> citas = List.of(cita(LocalDate.of(2026, 11, 10), "09:00", "23:59", EstadoCita.Cancelada),
                 confirmada("2026-11-08", "09:00"));
-        assertThat(Metricas.proximasCitas(citas, LOCAL, 5)).isEmpty();
+        assertTrue(Metricas.proximasCitas(citas, LOCAL, 5).isEmpty());
     }
 
     // ---------- ocupacionSemana ----------
@@ -440,32 +438,31 @@ class MetricasTest {
         List<OcupacionServicio> semana = Metricas.ocupacionSemana(
                 List.of(semanal(a, "Servicio A", true), semanal(b, "Servicio B", true), semanal(c, "Servicio C", false)),
                 citas, LocalDate.of(2026, 11, 11)); // miércoles
-        assertThat(semana).extracting(OcupacionServicio::nombre).containsExactly("Servicio A", "Servicio B");
-        assertThat(semana).extracting(OcupacionServicio::servicioId).containsExactly(a, b);
-        assertThat(semana.get(0).ocupacion()).isCloseTo(0.1, within(1e-12));
-        assertThat(semana.get(1).ocupacion()).isEqualTo(0);
+        assertEquals(List.of("Servicio A", "Servicio B"), semana.stream().map(OcupacionServicio::nombre).toList());
+        assertEquals(List.of(a, b), semana.stream().map(OcupacionServicio::servicioId).toList());
+        assertEquals(0.1, semana.get(0).ocupacion(), 1e-12);
+        assertEquals(0, semana.get(1).ocupacion());
     }
 
     @Test
     void unDomingoSigueContandoLaSemanaQueEmpezoElLunesAnterior() {
         UUID a = UUID.randomUUID();
         List<Cita> citas = List.of(deServicio(a, "2026-11-09", "08:00", "12:00", EstadoCita.Confirmada)); // 20 %
-        assertThat(Metricas.ocupacionSemana(List.of(semanal(a, "A", true)), citas, LocalDate.of(2026, 11, 15))
-                .get(0).ocupacion()).isCloseTo(0.2, within(1e-12));
-        assertThat(Metricas.ocupacionSemana(List.of(semanal(a, "A", true)), citas, LocalDate.of(2026, 11, 16))
-                .get(0).ocupacion()).isEqualTo(0);
+        assertEquals(0.2, Metricas.ocupacionSemana(List.of(semanal(a, "A", true)), citas, LocalDate.of(2026, 11, 15))
+                .get(0).ocupacion(), 1e-12);
+        assertEquals(0, Metricas.ocupacionSemana(List.of(semanal(a, "A", true)), citas, LocalDate.of(2026, 11, 16))
+                .get(0).ocupacion());
     }
 
     @Test
     void sinServiciosActivosLaOcupacionSemanalEstaVacia() {
-        assertThat(Metricas.ocupacionSemana(List.of(semanal(UUID.randomUUID(), "C", false)), List.of(), LUNES))
-                .isEmpty();
+        assertTrue(Metricas.ocupacionSemana(List.of(semanal(UUID.randomUUID(), "C", false)), List.of(), LUNES).isEmpty());
     }
 
     @Test
     void elLunesDeLaSemanaYElDomingoSeCalculan() {
-        assertThat(Metricas.lunesDeLaSemana(LocalDate.of(2026, 11, 15))).isEqualTo(LocalDate.of(2026, 11, 9));
-        assertThat(Metricas.lunesDeLaSemana(LocalDate.of(2026, 11, 9))).isEqualTo(LocalDate.of(2026, 11, 9));
-        assertThat(Metricas.lunesDeLaSemana(LocalDate.of(2026, 11, 16))).isEqualTo(LocalDate.of(2026, 11, 16));
+        assertEquals(LocalDate.of(2026, 11, 9), Metricas.lunesDeLaSemana(LocalDate.of(2026, 11, 15)));
+        assertEquals(LocalDate.of(2026, 11, 9), Metricas.lunesDeLaSemana(LocalDate.of(2026, 11, 9)));
+        assertEquals(LocalDate.of(2026, 11, 16), Metricas.lunesDeLaSemana(LocalDate.of(2026, 11, 16)));
     }
 }

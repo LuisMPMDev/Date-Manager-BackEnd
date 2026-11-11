@@ -1,7 +1,9 @@
 package com.datemanager.dominio;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -56,26 +58,24 @@ class HorariosTest {
         // Sin pasar por Validaciones: ini + duracion desbordaría int y el bucle recorrería millones de pasos.
         Servicio enorme = servicio(Integer.MAX_VALUE, true, ventana(1, "09:00", "12:00"));
 
-        assertThat(assertTimeoutPreemptively(Duration.ofSeconds(2),
-                () -> Horarios.horariosLibres(enorme, LUNES, List.of(), AHORA, null))).isEmpty();
+        assertTrue(assertTimeoutPreemptively(Duration.ofSeconds(2),
+                () -> Horarios.horariosLibres(enorme, LUNES, List.of(), AHORA, null)).isEmpty());
     }
 
     @Test
     void exponeLasConstantes() {
-        assertThat(Horarios.PASO_MIN).isEqualTo(30);
-        assertThat(Horarios.MAX_DIAS_ANTICIPACION).isEqualTo(30);
+        assertEquals(30, Horarios.PASO_MIN);
+        assertEquals(30, Horarios.MAX_DIAS_ANTICIPACION);
     }
 
     @Test
     void ofreceInicioCadaTreintaMinutosMientrasLaCitaQuepa() {
-        assertThat(Horarios.horariosLibres(servicioLunes(), LUNES, List.of(), AHORA, null))
-                .containsExactlyElementsOf(ts("09:00", "09:30", "10:00", "10:30", "11:00"));
+        assertEquals(ts("09:00", "09:30", "10:00", "10:30", "11:00"), Horarios.horariosLibres(servicioLunes(), LUNES, List.of(), AHORA, null));
     }
 
     @Test
     void unaCitaContiguaNoBloquea() {
-        assertThat(Horarios.horariosLibres(servicioLunes(), LUNES, List.of(citaDeLas10()), AHORA, null))
-                .containsExactlyElementsOf(ts("09:00", "11:00"));
+        assertEquals(ts("09:00", "11:00"), Horarios.horariosLibres(servicioLunes(), LUNES, List.of(citaDeLas10()), AHORA, null));
     }
 
     @Test
@@ -83,103 +83,92 @@ class HorariosTest {
         List<Cita> citas = List.of(
                 cita(UUID.randomUUID(), SERVICIO_ID, "10:00", "11:00", EstadoCita.Cancelada),
                 cita(UUID.randomUUID(), OTRO_SERVICIO_ID, "10:00", "11:00", EstadoCita.Confirmada));
-        assertThat(Horarios.horariosLibres(servicioLunes(), LUNES, citas, AHORA, null))
-                .containsExactlyElementsOf(ts("09:00", "09:30", "10:00", "10:30", "11:00"));
+        assertEquals(ts("09:00", "09:30", "10:00", "10:30", "11:00"), Horarios.horariosLibres(servicioLunes(), LUNES, citas, AHORA, null));
     }
 
     @Test
     void unaCitaAtendidaSiBloquea() {
         List<Cita> citas = List.of(cita(UUID.randomUUID(), SERVICIO_ID, "10:00", "11:00", EstadoCita.Atendida));
-        assertThat(Horarios.horariosLibres(servicioLunes(), LUNES, citas, AHORA, null))
-                .containsExactlyElementsOf(ts("09:00", "11:00"));
+        assertEquals(ts("09:00", "11:00"), Horarios.horariosLibres(servicioLunes(), LUNES, citas, AHORA, null));
     }
 
     @Test
     void ventanaMasCortaQueLaDuracionNoOfreceNada() {
         Servicio s = servicio(90, true, ventana(1, "09:00", "10:00"));
-        assertThat(Horarios.horariosLibres(s, LUNES, List.of(), AHORA, null)).isEmpty();
+        assertTrue(Horarios.horariosLibres(s, LUNES, List.of(), AHORA, null).isEmpty());
     }
 
     @Test
     void usaDiasIsoParaElDomingo() {
         Servicio s = servicio(60, true, ventana(7, "09:00", "12:00"));
         LocalDateTime antes = LocalDateTime.of(2026, 11, 1, 10, 0);
-        assertThat(Horarios.horariosLibres(s, LocalDate.of(2026, 11, 8), List.of(), antes, null)).isNotEmpty();
-        assertThat(Horarios.horariosLibres(s, LUNES, List.of(), antes, null)).isEmpty();
+        assertFalse(Horarios.horariosLibres(s, LocalDate.of(2026, 11, 8), List.of(), antes, null).isEmpty());
+        assertTrue(Horarios.horariosLibres(s, LUNES, List.of(), antes, null).isEmpty());
     }
 
     @Test
     void hoyNoOfreceHorasPasadas() {
         LocalDateTime ahora = LocalDateTime.of(2026, 11, 9, 10, 15); // lunes 10:15
-        assertThat(Horarios.horariosLibres(servicioLunes(), LUNES, List.of(), ahora, null))
-                .containsExactlyElementsOf(ts("10:30", "11:00"));
+        assertEquals(ts("10:30", "11:00"), Horarios.horariosLibres(servicioLunes(), LUNES, List.of(), ahora, null));
     }
 
     @Test
     void aLas2330DelDiaAnteriorElDiaSiguienteCuentaComoManana() {
         LocalDateTime ahora = LocalDateTime.of(2026, 11, 8, 23, 30); // domingo 23:30
-        assertThat(Horarios.horariosLibres(servicioLunes(), LUNES, List.of(), ahora, null))
-                .containsExactlyElementsOf(ts("09:00", "09:30", "10:00", "10:30", "11:00"));
+        assertEquals(ts("09:00", "09:30", "10:00", "10:30", "11:00"), Horarios.horariosLibres(servicioLunes(), LUNES, List.of(), ahora, null));
     }
 
     @Test
     void limiteDeAnticipacion() {
         Servicio s = servicio(60, true, IntStream.rangeClosed(1, 7)
                 .mapToObj(d -> ventana(d, "09:00", "12:00")).toArray(VentanaDisponibilidad[]::new));
-        assertThat(Horarios.horariosLibres(s, LocalDate.of(2026, 12, 8), List.of(), AHORA, null)).isNotEmpty();
-        assertThat(Horarios.horariosLibres(s, LocalDate.of(2026, 12, 9), List.of(), AHORA, null)).isEmpty();
-        assertThat(Horarios.horariosLibres(s, LocalDate.of(2026, 11, 7), List.of(), AHORA, null)).isEmpty();
+        assertFalse(Horarios.horariosLibres(s, LocalDate.of(2026, 12, 8), List.of(), AHORA, null).isEmpty());
+        assertTrue(Horarios.horariosLibres(s, LocalDate.of(2026, 12, 9), List.of(), AHORA, null).isEmpty());
+        assertTrue(Horarios.horariosLibres(s, LocalDate.of(2026, 11, 7), List.of(), AHORA, null).isEmpty());
     }
 
     @Test
     void servicioInactivoNoOfreceNada() {
         Servicio s = servicio(60, false, ventana(1, "09:00", "12:00"));
-        assertThat(Horarios.horariosLibres(s, LUNES, List.of(), AHORA, null)).isEmpty();
+        assertTrue(Horarios.horariosLibres(s, LUNES, List.of(), AHORA, null).isEmpty());
     }
 
     @Test
     void servicioInactivoCalculaAlMoverUnaCita() {
         Servicio inactivo = servicio(60, false, ventana(1, "09:00", "12:00"));
         Cita propia = citaDeLas10();
-        assertThat(Horarios.horariosLibres(inactivo, LUNES, List.of(propia), AHORA, propia.id()))
-                .containsExactlyElementsOf(ts("09:00", "09:30", "10:00", "10:30", "11:00"));
-        assertThat(Horarios.horariosLibres(inactivo, LUNES, List.of(propia), AHORA, null)).isEmpty();
+        assertEquals(ts("09:00", "09:30", "10:00", "10:30", "11:00"), Horarios.horariosLibres(inactivo, LUNES, List.of(propia), AHORA, propia.id()));
+        assertTrue(Horarios.horariosLibres(inactivo, LUNES, List.of(propia), AHORA, null).isEmpty());
     }
 
     @Test
     void excluirCitaIdLiberaElHorarioPropio() {
         Cita propia = citaDeLas10();
-        assertThat(Horarios.horariosLibres(servicioLunes(), LUNES, List.of(propia), AHORA, null))
-                .doesNotContain(t("10:00"));
-        assertThat(Horarios.horariosLibres(servicioLunes(), LUNES, List.of(propia), AHORA, propia.id()))
-                .contains(t("10:00"));
+        assertFalse(Horarios.horariosLibres(servicioLunes(), LUNES, List.of(propia), AHORA, null).contains(t("10:00")));
+        assertTrue(Horarios.horariosLibres(servicioLunes(), LUNES, List.of(propia), AHORA, propia.id()).contains(t("10:00")));
     }
 
     @Test
     void ventanaQueNoEmpiezaEnPuntoOMediaConservaSuDesfase() {
         Servicio s = servicio(60, true, ventana(1, "09:15", "11:15"));
-        assertThat(Horarios.horariosLibres(s, LUNES, List.of(), AHORA, null))
-                .containsExactlyElementsOf(ts("09:15", "09:45", "10:15"));
+        assertEquals(ts("09:15", "09:45", "10:15"), Horarios.horariosLibres(s, LUNES, List.of(), AHORA, null));
     }
 
     @Test
     void duracionQueNoEsMultiploDeTreintaNoSeSalePorElFinDeLaVentana() {
         Servicio s = servicio(45, true, ventana(1, "09:00", "11:00"));
-        assertThat(Horarios.horariosLibres(s, LUNES, List.of(), AHORA, null))
-                .containsExactlyElementsOf(ts("09:00", "09:30", "10:00"));
+        assertEquals(ts("09:00", "09:30", "10:00"), Horarios.horariosLibres(s, LUNES, List.of(), AHORA, null));
     }
 
     @Test
     void ventanasSolapadasNoRepitenHorasYVanOrdenadas() {
         Servicio s = servicio(60, true, ventana(1, "10:00", "13:00"), ventana(1, "09:00", "12:00"));
-        assertThat(Horarios.horariosLibres(s, LUNES, List.of(), AHORA, null))
-                .containsExactlyElementsOf(ts("09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00"));
+        assertEquals(ts("09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00"), Horarios.horariosLibres(s, LUNES, List.of(), AHORA, null));
     }
 
     @Test
     void dosVentanasDelMismoDiaSeUnenOrdenadas() {
         Servicio s = servicio(60, true, ventana(1, "14:00", "16:00"), ventana(1, "09:00", "11:00"));
-        assertThat(Horarios.horariosLibres(s, LUNES, List.of(), AHORA, null))
-                .containsExactlyElementsOf(ts("09:00", "09:30", "10:00", "14:00", "14:30", "15:00"));
+        assertEquals(ts("09:00", "09:30", "10:00", "14:00", "14:30", "15:00"), Horarios.horariosLibres(s, LUNES, List.of(), AHORA, null));
     }
 }

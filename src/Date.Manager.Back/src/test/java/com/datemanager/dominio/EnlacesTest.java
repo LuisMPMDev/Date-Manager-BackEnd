@@ -1,8 +1,10 @@
 package com.datemanager.dominio;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
 import java.util.Base64;
@@ -26,35 +28,33 @@ class EnlacesTest {
 
     @Test
     void antesDeVencerSinLimiteEsActivo() {
-        assertThat(Enlaces.estado(enlace(null, 500, null), VENCE.minusMillis(1))).isEqualTo(EstadoEnlace.Activo);
+        assertEquals(EstadoEnlace.Activo, Enlaces.estado(enlace(null, 500, null), VENCE.minusMillis(1)));
     }
 
     @Test
     void justoAlVencerEsVencido() {
-        assertThat(Enlaces.estado(enlace(null, 0, null), VENCE)).isEqualTo(EstadoEnlace.Vencido);
-        assertThat(Enlaces.estado(enlace(null, 0, null), VENCE.plusSeconds(1))).isEqualTo(EstadoEnlace.Vencido);
+        assertEquals(EstadoEnlace.Vencido, Enlaces.estado(enlace(null, 0, null), VENCE));
+        assertEquals(EstadoEnlace.Vencido, Enlaces.estado(enlace(null, 0, null), VENCE.plusSeconds(1)));
     }
 
     @Test
     void conTodosLosUsosGastadosEsAgotado() {
-        assertThat(Enlaces.estado(enlace(2, 1, null), CREADO)).isEqualTo(EstadoEnlace.Activo);
-        assertThat(Enlaces.estado(enlace(2, 2, null), CREADO)).isEqualTo(EstadoEnlace.Agotado);
-        assertThat(Enlaces.estado(enlace(1, 1, null), CREADO)).isEqualTo(EstadoEnlace.Agotado);
+        assertEquals(EstadoEnlace.Activo, Enlaces.estado(enlace(2, 1, null), CREADO));
+        assertEquals(EstadoEnlace.Agotado, Enlaces.estado(enlace(2, 2, null), CREADO));
+        assertEquals(EstadoEnlace.Agotado, Enlaces.estado(enlace(1, 1, null), CREADO));
     }
 
     @Test
     void vencidoGanaAAgotado() {
-        assertThat(Enlaces.estado(enlace(2, 2, null), VENCE)).isEqualTo(EstadoEnlace.Vencido);
+        assertEquals(EstadoEnlace.Vencido, Enlaces.estado(enlace(2, 2, null), VENCE));
     }
 
     @Test
     void desactivadoGanaATodo() {
         Instant desactivado = CREADO.plusSeconds(60);
-        assertThat(Enlaces.estado(enlace(null, 0, desactivado), CREADO.plusSeconds(120)))
-                .isEqualTo(EstadoEnlace.Desactivado);
-        assertThat(Enlaces.estado(enlace(1, 1, desactivado), VENCE.plusSeconds(1)))
-                .isEqualTo(EstadoEnlace.Desactivado);
-        assertThat(Enlaces.estado(enlace(1, 1, desactivado), CREADO)).isEqualTo(EstadoEnlace.Desactivado);
+        assertEquals(EstadoEnlace.Desactivado, Enlaces.estado(enlace(null, 0, desactivado), CREADO.plusSeconds(120)));
+        assertEquals(EstadoEnlace.Desactivado, Enlaces.estado(enlace(1, 1, desactivado), VENCE.plusSeconds(1)));
+        assertEquals(EstadoEnlace.Desactivado, Enlaces.estado(enlace(1, 1, desactivado), CREADO));
     }
 
     // ---------- Código ----------
@@ -63,44 +63,44 @@ class EnlacesTest {
     void elCodigoTieneAlMenos128BitsEnBase64UrlSinRelleno() {
         String codigo = Enlaces.nuevoCodigo();
 
-        assertThat(codigo).hasSizeGreaterThanOrEqualTo(22).matches("[A-Za-z0-9_-]+");
-        assertThat(Base64.getUrlDecoder().decode(codigo)).hasSizeGreaterThanOrEqualTo(16);
-        assertThat(Enlaces.esCodigoBienFormado(codigo)).isTrue();
+        assertTrue(codigo.length() >= 22, "longitud: " + codigo.length());
+        assertTrue(codigo.matches("[A-Za-z0-9_-]+"), codigo);
+        assertTrue(Base64.getUrlDecoder().decode(codigo).length >= 16);
+        assertTrue(Enlaces.esCodigoBienFormado(codigo));
     }
 
     @Test
     void losCodigosNoSeRepiten() {
         Set<String> vistos = new HashSet<>();
         for (int i = 0; i < 10_000; i++) {
-            assertThat(vistos.add(Enlaces.nuevoCodigo())).isTrue();
+            assertTrue(vistos.add(Enlaces.nuevoCodigo()));
         }
     }
 
     @Test
     void unCodigoMalFormadoSeReconoceSinIrALaBase() {
-        assertThat(Enlaces.esCodigoBienFormado(null)).isFalse();
-        assertThat(Enlaces.esCodigoBienFormado("")).isFalse();
-        assertThat(Enlaces.esCodigoBienFormado("corto")).isFalse();
-        assertThat(Enlaces.esCodigoBienFormado("AAAAAAAAAAAAAAAAAAAAAA ")).isFalse(); // espacio final
-        assertThat(Enlaces.esCodigoBienFormado("AAAAAAAAAAAAAAAAAAAA+/")).isFalse(); // Base64 normal, no URL
-        assertThat(Enlaces.esCodigoBienFormado("A".repeat(44))).isFalse();
-        assertThat(Enlaces.esCodigoBienFormado("AAAAAAAAAAAAAAAAAAAA-_")).isTrue();
+        assertFalse(Enlaces.esCodigoBienFormado(null));
+        assertFalse(Enlaces.esCodigoBienFormado(""));
+        assertFalse(Enlaces.esCodigoBienFormado("corto"));
+        assertFalse(Enlaces.esCodigoBienFormado("AAAAAAAAAAAAAAAAAAAAAA ")); // espacio final
+        assertFalse(Enlaces.esCodigoBienFormado("AAAAAAAAAAAAAAAAAAAA+/")); // Base64 normal, no URL
+        assertFalse(Enlaces.esCodigoBienFormado("A".repeat(44)));
+        assertTrue(Enlaces.esCodigoBienFormado("AAAAAAAAAAAAAAAAAAAA-_"));
     }
 
     // ---------- Validar al crear ----------
 
     private static void esValidacionDe(Runnable accion, String campo) {
-        assertThatThrownBy(accion::run).isInstanceOfSatisfying(ErrorNegocio.class, e -> {
-            assertThat(e.codigo()).isEqualTo(CodigoError.VALIDACION);
-            assertThat(e.campos()).containsKey(campo);
-        });
+        ErrorNegocio e = assertThrows(ErrorNegocio.class, accion::run);
+        assertEquals(CodigoError.VALIDACION, e.codigo());
+        assertTrue(e.campos().containsKey(campo), "campos: " + e.campos());
     }
 
     @Test
     void laDuracionVaDe60A43200MinutosYPorDefectoEs1440() {
-        assertThat(Enlaces.duracionMinutos(null)).isEqualTo(1440);
-        assertThat(Enlaces.duracionMinutos(60)).isEqualTo(60);
-        assertThat(Enlaces.duracionMinutos(43200)).isEqualTo(43200);
+        assertEquals(1440, Enlaces.duracionMinutos(null));
+        assertEquals(60, Enlaces.duracionMinutos(60));
+        assertEquals(43200, Enlaces.duracionMinutos(43200));
         esValidacionDe(() -> Enlaces.duracionMinutos(59), "duracionMinutos");
         esValidacionDe(() -> Enlaces.duracionMinutos(43201), "duracionMinutos");
         esValidacionDe(() -> Enlaces.duracionMinutos(0), "duracionMinutos");
@@ -109,8 +109,8 @@ class EnlacesTest {
 
     @Test
     void elMaximoDeUsosEsNuloOAlMenosUno() {
-        assertThatCode(() -> Enlaces.validarMaxUsos(null)).doesNotThrowAnyException();
-        assertThatCode(() -> Enlaces.validarMaxUsos(1)).doesNotThrowAnyException();
+        assertDoesNotThrow(() -> Enlaces.validarMaxUsos(null));
+        assertDoesNotThrow(() -> Enlaces.validarMaxUsos(1));
         esValidacionDe(() -> Enlaces.validarMaxUsos(0), "maxUsos");
         esValidacionDe(() -> Enlaces.validarMaxUsos(-1), "maxUsos");
     }
@@ -119,9 +119,9 @@ class EnlacesTest {
 
     @Test
     void cadaEstadoNoActivoTieneSuCodigoDeError() {
-        assertThat(Enlaces.errorDe(EstadoEnlace.Vencido).codigo()).isEqualTo(CodigoError.ENLACE_VENCIDO);
-        assertThat(Enlaces.errorDe(EstadoEnlace.Agotado).codigo()).isEqualTo(CodigoError.ENLACE_AGOTADO);
-        assertThat(Enlaces.errorDe(EstadoEnlace.Desactivado).codigo()).isEqualTo(CodigoError.ENLACE_DESACTIVADO);
-        assertThat(Enlaces.noEncontrado().codigo()).isEqualTo(CodigoError.ENLACE_NO_ENCONTRADO);
+        assertEquals(CodigoError.ENLACE_VENCIDO, Enlaces.errorDe(EstadoEnlace.Vencido).codigo());
+        assertEquals(CodigoError.ENLACE_AGOTADO, Enlaces.errorDe(EstadoEnlace.Agotado).codigo());
+        assertEquals(CodigoError.ENLACE_DESACTIVADO, Enlaces.errorDe(EstadoEnlace.Desactivado).codigo());
+        assertEquals(CodigoError.ENLACE_NO_ENCONTRADO, Enlaces.noEncontrado().codigo());
     }
 }
