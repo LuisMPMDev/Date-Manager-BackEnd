@@ -29,6 +29,7 @@ import com.datemanager.infraestructura.persistencia.BloqueoAdministracion;
 import com.datemanager.infraestructura.persistencia.CitaRepositorio;
 import com.datemanager.infraestructura.persistencia.ClienteRepositorio;
 import com.datemanager.infraestructura.persistencia.EnlaceRepositorio;
+import com.datemanager.infraestructura.persistencia.Migrador;
 import com.datemanager.infraestructura.persistencia.Pool;
 import com.datemanager.infraestructura.persistencia.RolRepositorio;
 import com.datemanager.infraestructura.persistencia.ServicioRepositorio;
@@ -41,17 +42,37 @@ import com.datemanager.infraestructura.seguridad.ServicioJwt;
 
 /**
  * Cableado a mano de la aplicación (lo que antes hacía el contenedor de Spring): repositorios, servicios,
- * controladores, rutas y servidor HTTP. El pool lo crea y lo cierra quien llama.
+ * controladores, rutas y servidor HTTP, y su ciclo de vida.
  *
- * <p>Registra todas las rutas de la API (autenticación, panel y zona pública). El ciclo de vida completo (migrar,
- * administrador inicial, semilla) llega en una tarea posterior.
+ * <p>{@link #iniciar()} hace lo que hacía el arranque de Spring, en el mismo orden: migra el esquema (Flyway), siembra
+ * los datos de ejemplo si el perfil es {@code dev} y la base está vacía ({@link SemillaDatos}), crea el administrador
+ * inicial si no hay usuarios ({@link AdministradorInicial}) y por último abre el puerto. Si algo falla, lanza y el
+ * servidor no queda escuchando.
  */
 public final class Aplicacion {
 
     private final Enrutador rutas = new Enrutador();
     private final ServidorHttp servidor;
+    private final Pool pool;
+    /** Si el pool lo creó esta aplicación (y por tanto lo cierra al detenerse). */
+    private final boolean poolPropio;
+    private final Migrador migrador;
+    private final SemillaDatos semilla;
+    private final AdministradorInicial administrador;
+    private boolean detenida;
 
     /**
+     * Para producción: crea su propio pool con la configuración y lo cierra en {@link #detener()}.
+     *
+     * @param reloj reloj en la zona del negocio
+     */
+    public Aplicacion(Configuracion cfg, Clock reloj) {
+        this(cfg, new Pool(cfg.dbUrl(), cfg.dbUsuario(), cfg.dbClave(), cfg.dbPool()), true, reloj, new Bcrypt());
+    }
+
+    /**
+     * Sobre un pool ajeno: lo crea y lo cierra quien llama.
+     *
      * @param reloj reloj en la zona del negocio (las pruebas pasan uno que se puede fijar)
      */
     public Aplicacion(Configuracion cfg, Pool pool, Clock reloj) {
@@ -59,9 +80,15 @@ public final class Aplicacion {
     }
 
     public Aplicacion(Configuracion cfg, Pool pool, Clock reloj, CodificadorClave codificador) {
+        this(cfg, pool, false, reloj, codificador);
+    }
+
+    private Aplicacion(Configuracion cfg, Pool pool, boolean poolPropio, Clock reloj, CodificadorClave codificador) {
         Objects.requireNonNull(cfg);
         Objects.requireNonNull(reloj);
-        Transaccion tx = new Transaccion(Objects.requireNonNull(pool));
+        this.pool = Objects.requireNonNull(pool);
+        this.poolPropio = poolPropio;
+        Transaccion tx = new Transaccion(pool);
 
         VentanaRepositorio ventanas = new VentanaRepositorio(tx);
         ServicioRepositorio serviciosRepo = new ServicioRepositorio(tx, ventanas);
@@ -94,6 +121,12 @@ public final class Aplicacion {
         registrar(new InicioControlador(inicio).rutas());
 
         servidor = new ServidorHttp(cfg, rutas, new Autenticador(jwt, usuarios, roles, tx));
+        migrador = new Migrador(pool);
+        semilla = cfg.dev()
+                ? new SemillaDatos(tx, roles, usuarios, serviciosRepo, clientesRepo, citasRepo, codificador, reloj)
+                : null;
+        administrador = new AdministradorInicial(tx, roles, usuarios, codificador, cfg.adminUsuario(),
+                cfg.adminClave());
     }
 
     private void registrar(List<Ruta> nuevas) {
@@ -105,7 +138,16 @@ public final class Aplicacion {
         return rutas;
     }
 
-    public void iniciar() {
+    /** Migra, siembra (solo en {@code dev}), crea el administrador inicial y abre el puerto. */
+    public synchronized void iniciar() {
+        if (detenida) {
+            throw new IllegalStateException("La aplicación ya se detuvo.");
+        }
+        migrador.migrar();
+        if (semilla != null) {
+            semilla.sembrarSiVacia();
+        }
+        administrador.crearSiHaceFalta();
         servidor.iniciar();
     }
 
@@ -114,7 +156,15 @@ public final class Aplicacion {
         return servidor.puerto();
     }
 
-    public void detener() {
+    /** Cierra el puerto (esperando un poco a las peticiones en curso) y, si es suyo, el pool. Se puede repetir. */
+    public synchronized void detener() {
+        if (detenida) {
+            return;
+        }
+        detenida = true;
         servidor.detener();
+        if (poolPropio) {
+            pool.cerrar();
+        }
     }
 }

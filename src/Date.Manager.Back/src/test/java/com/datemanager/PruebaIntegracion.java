@@ -8,6 +8,7 @@ import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -19,12 +20,14 @@ import java.util.UUID;
 
 import com.datemanager.dominio.CodigoError;
 import com.datemanager.dominio.ErrorNegocio;
+import com.datemanager.infraestructura.AdministradorInicial;
 import com.datemanager.infraestructura.Aplicacion;
 import com.datemanager.infraestructura.Configuracion;
 import com.datemanager.infraestructura.http.Json;
 import com.datemanager.infraestructura.http.ManejadorErrores;
 import com.datemanager.infraestructura.http.Respuesta;
 import com.datemanager.infraestructura.http.Ruta;
+import com.datemanager.infraestructura.persistencia.ErrorSql;
 import com.datemanager.infraestructura.seguridad.ServicioJwt;
 import org.junit.jupiter.api.BeforeEach;
 
@@ -51,15 +54,18 @@ public abstract class PruebaIntegracion extends PruebaBase {
     private static final class Compartida {
         static final RelojMutable RELOJ = new RelojMutable(ZONA);
         static final ServicioJwt JWT = new ServicioJwt(SECRETO, RELOJ);
+        static final Configuracion CFG = new Configuracion("jdbc:sqlserver://no-se-usa", "no-se-usa", "no-se-usa",
+                10, SECRETO, ZONA, List.of(ORIGEN_CORS), "", "", false, 0);
         static final Aplicacion APP;
         static final String BASE;
 
         static {
-            Configuracion cfg = new Configuracion("jdbc:sqlserver://no-se-usa", "no-se-usa", "no-se-usa", 10,
-                    SECRETO, ZONA, List.of(ORIGEN_CORS), "", "", false, 0);
-            APP = new Aplicacion(cfg, pool, RELOJ);
+            APP = new Aplicacion(CFG, pool, RELOJ);
             rutasDePrueba().forEach(APP.rutas()::agregar);
-            APP.iniciar();
+            // Sin administrador inicial: su aviso de arranque no ensucia la salida de pruebas.
+            try (CapturaRegistro silencio = new CapturaRegistro(AdministradorInicial.class, true)) {
+                APP.iniciar();
+            }
             Runtime.getRuntime().addShutdownHook(new Thread(APP::detener));
             BASE = "http://127.0.0.1:" + APP.puerto();
         }
@@ -79,7 +85,33 @@ public abstract class PruebaIntegracion extends PruebaBase {
                 }, null),
                 new Ruta("GET", "/api/publico/_prueba/error-negocio/{codigo}", Set.of(), true, s -> {
                     throw new ErrorNegocio(CodigoError.valueOf(s.parametro("codigo")), "x");
+                }, null),
+                // Lo que en Spring era un @NotBlank(message = "es obligatorio") sobre «nombre».
+                new Ruta("POST", "/api/publico/_prueba/validacion", Set.of(), true, s -> {
+                    Object nombre = s.cuerpoObjeto().get("nombre");
+                    if (!(nombre instanceof String texto) || texto.isBlank()) {
+                        throw new ErrorNegocio(CodigoError.VALIDACION, ManejadorErrores.MENSAJE_DATOS_INVALIDOS,
+                                Map.of("nombre", "es obligatorio"));
+                    }
+                    return Respuesta.ok("ok");
+                }, null),
+                // Última línea de defensa: una violación de restricción de la base no puede ser un 500.
+                new Ruta("GET", "/api/publico/_prueba/violacion-unica", Set.of(), true, s -> {
+                    throw new ErrorSql(new SQLException("Violation of UNIQUE KEY (detalle interno)", "23000", 2627));
+                }, null),
+                // Un fallo de bloqueo de la base (interbloqueo, tiempo de espera) no puede ser un 500.
+                new Ruta("GET", "/api/publico/_prueba/bloqueo", Set.of(), true, s -> {
+                    throw new ErrorSql(new SQLException(
+                            "Transaction was deadlocked on lock resources (detalle interno)", "40001", 1205));
+                }, null),
+                new Ruta("GET", "/api/publico/_prueba/inesperado", Set.of(), true, s -> {
+                    throw new IllegalStateException("detalle interno que no debe filtrarse");
                 }, null));
+    }
+
+    /** La configuración de la aplicación compartida (escrita a mano: nunca sale del entorno real). */
+    protected static Configuracion configuracion() {
+        return Compartida.CFG;
     }
 
     protected RelojMutable reloj;
