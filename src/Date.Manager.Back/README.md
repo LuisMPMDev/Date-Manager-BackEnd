@@ -1,6 +1,6 @@
 # DateManager API
 
-API REST (Java 21, Spring Boot 3.5, SQL Server) que reemplaza el almacén local de la demo Angular: login real,
+API REST (Java 21 puro, sin frameworks, SQL Server) que reemplaza el almacén local de la demo Angular: login real,
 permisos verificados en el servidor, reservas sin doble agendamiento y enlaces de invitación para que los clientes
 agenden sin cuenta. El cliente Angular de `src/Date.Manager.Front` ya la consume (ver su README para arrancarlo
 contra esta API).
@@ -8,7 +8,10 @@ contra esta API).
 ## Requisitos
 
 - **JDK 21** (`maven.compiler.release` = 21).
-- **Maven** 3.6.3 o superior (no hay wrapper en el repositorio).
+- **Maven** 3.6.3 o superior (no hay wrapper en el repositorio). Solo se usa para compilar y probar.
+- **Sin frameworks:** el servidor HTTP (`com.sun.net.httpserver`), el JSON, el JWT, BCrypt, el pool de conexiones y el
+  migrador de esquema son código propio. La única dependencia de ejecución es el driver `mssql-jdbc` (que el
+  `package` mete dentro del jar); en pruebas, solo JUnit 5.
 - **SQL Server 2022** con **TCP/IP habilitado** (puerto 1433) y **autenticación mixta** (Windows + SQL), porque la
   API entra con un login SQL. Dos bases vacías: `DateManager` (la aplicación) y `DateManagerTest` (las pruebas).
 
@@ -58,14 +61,14 @@ GO
 ```
 
 Después crea tú mismo el archivo `.env.local` (ver más abajo). Las tablas las crea la propia aplicación con
-Flyway al arrancar (`src/main/resources/db/migration`).
+su migrador al arrancar (`src/main/resources/db/migration`).
 
 ## 2. Variables de entorno
 
 La configuración sale de variables de entorno `DATEMANAGER_*`; **ningún secreto vive en el repositorio**.
 `.env.local` es un archivo de texto en esta carpeta, una variable por línea (`NOMBRE=valor`), **ignorado por git**
 (`.gitignore`); el script del paso anterior lo genera. Las variables no se cargan solas: hay que cargarlas en el
-terminal antes de usar Maven (ver abajo).
+terminal antes de usar Maven o de arrancar la API (ver abajo).
 
 | Variable | Obligatoria | Para qué |
 | --- | --- | --- |
@@ -74,6 +77,9 @@ terminal antes de usar Maven (ver abajo).
 | `DATEMANAGER_DB_CLAVE` | sí | Contraseña de ese login |
 | `DATEMANAGER_JWT_SECRETO` | sí | Clave para firmar los tokens (HS256), al menos 32 bytes; sin ella la aplicación no arranca |
 | `DATEMANAGER_ADMIN_USUARIO`, `DATEMANAGER_ADMIN_CLAVE` | no | Administrador inicial: solo se crea si al arrancar no hay **ningún** usuario (rol Administrador con todos los permisos). Si faltan, arranca igual y avisa en el log |
+| `DATEMANAGER_PERFIL` | no | `dev` activa el perfil de desarrollo (datos de ejemplo y Swagger UI); cualquier otro valor, o ninguno, es producción. Sustituye al perfil `dev` de Spring |
+| `DATEMANAGER_DB_POOL` | no | Tamaño máximo del pool de conexiones; por defecto `10` |
+| `DATEMANAGER_PUERTO` | no | Puerto HTTP en que escucha la API; por defecto `8080` |
 | `DATEMANAGER_ZONA_HORARIA` | no | Zona del negocio; por defecto `America/Bogota`. «Hoy» y «ahora» se calculan en ella, no en la de la JVM |
 | `DATEMANAGER_CORS_ORIGENES` | no | Orígenes permitidos separados por comas; por defecto `http://localhost:4200` |
 | `DATEMANAGER_TEST_DB_URL`, `DATEMANAGER_TEST_DB_USUARIO`, `DATEMANAGER_TEST_DB_CLAVE` | solo para pruebas | Conexión a la base `DateManagerTest` |
@@ -100,25 +106,33 @@ done < <(tr -d '\r' < .env.local)
 
 Las variables valen solo para ese terminal. No imprimas su valor ni las copies a archivos versionados.
 
-## 3. Arrancar con el perfil `dev`
+## 3. Compilar y arrancar con el perfil `dev`
 
-Con las variables cargadas:
+`mvn -q package` compila, ejecuta las pruebas (necesitan `DATEMANAGER_TEST_DB_*`; con `-DskipTests` se omiten) y deja
+en `target/` el jar ejecutable con el driver dentro, `Date.Manager.Back-1.0-SNAPSHOT.jar`. Con las variables cargadas:
 
 ```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+mvn -q package
+DATEMANAGER_PERFIL=dev java -jar target/Date.Manager.Back-1.0-SNAPSHOT.jar
 ```
 
-En **PowerShell** el argumento va entre comillas (si no, PowerShell parte el nombre en el punto):
+En **PowerShell**:
 
 ```powershell
-mvn spring-boot:run "-Dspring-boot.run.profiles=dev"
+mvn -q package
+$env:DATEMANAGER_PERFIL = 'dev'
+java -jar target/Date.Manager.Back-1.0-SNAPSHOT.jar
 ```
 
-La API queda en <http://localhost:8080>. Al primer arranque Flyway crea las tablas y, **solo en el perfil `dev` y
-solo si la base está vacía**, se siembran los datos de ejemplo (ver «Usuarios de ejemplo»).
+La API queda en <http://localhost:8080> (o en `DATEMANAGER_PUERTO`). Al primer arranque el migrador crea las tablas y,
+**solo en el perfil `dev` y solo si la base está vacía**, se siembran los datos de ejemplo (ver «Usuarios de
+ejemplo»). Si la configuración es inválida o el arranque falla (base inaccesible, migración rechazada...), el proceso
+escribe un mensaje claro, sin valores secretos ni trazas de pila, y termina con código 1.
 
-- **Swagger UI:** <http://localhost:8080/swagger-ui.html> (redirige a `/swagger-ui/index.html`); el contrato
-  OpenAPI en JSON está en <http://localhost:8080/v3/api-docs>. Solo existen en el perfil `dev`: en los demás
+- **Swagger UI:** <http://localhost:8080/swagger-ui.html> (la sirve la propia API, sin redirección); el contrato
+  OpenAPI en JSON está en <http://localhost:8080/v3/api-docs>, generado a partir de las rutas reales. La página no
+  lleva la interfaz dentro: carga Swagger UI 5.17.14 desde el CDN jsDelivr, así que **necesita conexión a Internet** en
+  el navegador (`/v3/api-docs` funciona sin ella). Solo existen en el perfil `dev`: en los demás
   perfiles no hay ni Swagger ni siembra. Para llamar a las rutas del panel
   desde Swagger UI: haz login con `POST /api/auth/login` (por ejemplo `marta` / `demo123`), copia el valor de
   `token` de la respuesta, pulsa *Authorize*, pega el token (sin el prefijo `Bearer`) y confirma; desde ahí las
@@ -130,12 +144,12 @@ curl -s -X POST http://localhost:8080/api/auth/login -H "Content-Type: applicati
      -d '{"usuario":"marta","clave":"demo123"}'
 ```
 
-Para detenerla, `Ctrl+C` en el terminal.
+Para detenerla, `Ctrl+C` en el terminal (cierra el puerto y el pool ordenadamente).
 
 ## 4. Correr las pruebas
 
 > **Cuidado:** las pruebas usan la base `DateManagerTest` y **la borran por completo** al arrancar y antes de cada
-> prueba (Flyway `clean` solo existe en las pruebas y se niega a ejecutarse si la base conectada no termina en
+> prueba (la limpieza del migrador solo se usa en las pruebas y se niega a ejecutarse si la base conectada no termina en
 > `Test`). Nunca apuntes `DATEMANAGER_TEST_DB_URL` a una base con datos que quieras conservar.
 
 Con las variables cargadas (necesitan `DATEMANAGER_TEST_DB_*`):
@@ -232,7 +246,7 @@ los datos ya guardados.
 | --- | --- | --- | --- |
 | `cancelada_en` tiene valor si y solo si la cita está `Cancelada` | `ck_cita_cancelada_coherente` (`V7`) | Cancelar una cita fija la fecha de cancelación; ningún otro estado la lleva | `EsquemaRestriccionesTest` |
 | `cancelada_en >= creada_en` | `ck_cita_cancelada_posterior` (`V7`) | La cancelación es posterior a la creación | `EsquemaRestriccionesTest` |
-| `nombre`, `apellido` y `telefono` de cliente, `nombre` de usuario, de servicio y de rol: no vacíos ni solo espacios | `ck_cliente_nombre_no_vacio`, `ck_cliente_apellido_no_vacio`, `ck_cliente_telefono_no_vacio`, `ck_usuario_nombre_no_vacio`, `ck_servicio_nombre_no_vacio`, `ck_rol_nombre_no_vacio` (`V7`) | `@NotBlank` y recorte de espacios de la capa de aplicación | `EsquemaRestriccionesTest` |
+| `nombre`, `apellido` y `telefono` de cliente, `nombre` de usuario, de servicio y de rol: no vacíos ni solo espacios | `ck_cliente_nombre_no_vacio`, `ck_cliente_apellido_no_vacio`, `ck_cliente_telefono_no_vacio`, `ck_usuario_nombre_no_vacio`, `ck_servicio_nombre_no_vacio`, `ck_rol_nombre_no_vacio` (`V7`) | Los métodos `validar()` y el recorte de espacios de la capa de aplicación | `EsquemaRestriccionesTest` |
 | Correo de cliente y de usuario: una sola `@`, un punto en el dominio, sin espacios y sin letras A-Z ASCII (en usuario se admite vacío: el administrador inicial se crea sin correo) | `ck_cliente_correo_forma`, `ck_usuario_correo_forma` (`V7`) | La aplicación guarda el correo recortado y en minúsculas, con la forma `^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$` (la de SQL es algo más laxa, salvo con `＠` y `．` de ancho completo: ver «Lo que las reglas no cubren») | `EsquemaRestriccionesTest` |
 | Nombre de usuario (`usuario.usuario`): no vacío, sin espacios en los extremos y sin A-Z ASCII | `ck_usuario_usuario_forma` (`V7`) | La aplicación recorta y pasa a minúsculas | `EsquemaRestriccionesTest` |
 | `clave_hash` tiene forma de hash BCrypt (`$2a$`/`$2b$`/`$2y$`, dos dígitos de costo y 53 caracteres, 60 en total) | `ck_usuario_clave_hash_bcrypt` (`V7`) | Nunca se guarda la contraseña, solo el hash del codificador | `EsquemaRestriccionesTest` |
@@ -256,7 +270,7 @@ rechazo de un disparador).
 
 ### Si la migración aborta (`THROW 50001`)
 
-Al arrancar, Flyway falla con un mensaje que nombra la regla, la tabla y hasta 5 ids (o pares de ids) de ejemplo.
+Al arrancar, el migrador falla con un mensaje que nombra la regla, la tabla y hasta 5 ids (o pares de ids) de ejemplo.
 La migración **nunca corrige ni borra datos por su cuenta**: `V7`, `V8` y `V9` auditan primero (solo lectura), se
 ejecutan cada una en una sola transacción y, si algo falla, la base queda en la versión anterior, sin
 restricciones ni disparadores a medias. Qué hacer: corregir a mano las filas que indica el mensaje (completar un
@@ -282,7 +296,7 @@ aborto se repite, con la siguiente regla violada, hasta que no quede ninguna.
   transacción no ve ni espera las filas aún sin confirmar de la otra y podrían ganar las dos). Azure SQL lo
   activa por defecto. Se comprueba con `SELECT is_read_committed_snapshot_on FROM sys.databases WHERE name =
   DB_NAME()`. Si está activo, añade `WITH (UPDLOCK, HOLDLOCK)` a la lectura de `ventana_disponibilidad` del
-  disparador en una migración nueva (no se edita `V9`: Flyway valida su checksum). La API no se ve afectada porque
+  disparador en una migración nueva (no se edita `V9`: el migrador valida su checksum). La API no se ve afectada porque
   `ServiciosServicio.guardar` toma el bloqueo de la fila del servicio y reemplaza sus ventanas en una sola transacción, así que dos guardados del mismo servicio se serializan.
 - **Reloj del servidor atrasado.** Si el reloj retrocede (p. ej. un ajuste NTP hacia atrás) y queda antes del
   instante en que se creó una cita o un enlace, cancelar la cita o desactivar el enlace da `409 CONFLICTO` por

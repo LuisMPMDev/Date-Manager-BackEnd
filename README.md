@@ -8,7 +8,7 @@ Proyecto de curso. Las entidades y el problema vienen de `EVIDENCIA PRODUCTO (SE
 
 | Carpeta | Qué contiene | Cómo arrancarlo |
 |---|---|---|
-| [`src/Date.Manager.Back`](src/Date.Manager.Back) | API REST en Java 21 y Spring Boot con SQL Server, Flyway, JWT y permisos comprobados en el servidor | [README del backend](src/Date.Manager.Back/README.md) |
+| [`src/Date.Manager.Back`](src/Date.Manager.Back) | API REST en Java 21 puro (sin frameworks) con SQL Server, JWT y permisos comprobados en el servidor | [README del backend](src/Date.Manager.Back/README.md) |
 | [`src/Date.Manager.Front`](src/Date.Manager.Front) | Cliente web en Angular 21 conectado a la API: página pública de reserva y panel de administración | [README del frontend](src/Date.Manager.Front/README.md) |
 
 Para ejecutarlo completo: prepara SQL Server y arranca la API con el perfil `dev` (datos de ejemplo), y luego `npm start` en el frontend. Los pasos exactos están en los dos README.
