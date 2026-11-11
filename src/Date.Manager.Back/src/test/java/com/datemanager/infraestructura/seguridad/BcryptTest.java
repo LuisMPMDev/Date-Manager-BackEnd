@@ -3,6 +3,7 @@ package com.datemanager.infraestructura.seguridad;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.regex.Pattern;
@@ -149,12 +150,22 @@ class BcryptTest {
     }
 
     @Test
-    void codificarConClaveLargaTruncaComoLoHaceCoincide() {
-        String larga = "y".repeat(90);
-        String hash = bcrypt.codificar(larga);
+    void codificarSeNiegaConMasDe72BytesYNoMuestraLaClave() {
+        String justa = "y".repeat(72);
+        assertTrue(bcrypt.coincide(justa, bcrypt.codificar(justa)));
+        assertTrue(bcrypt.coincide("ñ".repeat(36), bcrypt.codificar("ñ".repeat(36))), "36 ñ son 72 bytes");
 
-        assertTrue(bcrypt.coincide("y".repeat(72), hash));
-        assertTrue(bcrypt.coincide(larga, hash));
+        for (String larga : new String[] {"y".repeat(73), "ñ".repeat(36) + "z", "ñ".repeat(37), "z".repeat(500)}) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> bcrypt.codificar(larga));
+            assertEquals("La clave no puede pasar de 72 bytes.", e.getMessage());
+        }
+    }
+
+    @Test
+    void coincideSigueRecortandoUnCandidatoDeMasDe72Bytes() {
+        String hash = bcrypt.codificar("y".repeat(72));
+
+        assertTrue(bcrypt.coincide("y".repeat(90), hash));
         assertFalse(bcrypt.coincide("y".repeat(71), hash));
     }
 

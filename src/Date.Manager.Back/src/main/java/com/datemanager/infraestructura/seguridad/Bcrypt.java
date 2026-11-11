@@ -12,9 +12,10 @@ import com.datemanager.aplicacion.CodificadorClave;
  * de 60 caracteres con sal aleatoria y comprueba hashes {@code $2a$}, {@code $2b$} y {@code $2y$} de cualquier costo
  * entre 4 y 31, que es lo que escribía el {@code BCryptPasswordEncoder} de la aplicación original.
  *
- * <p>Solo cuentan los primeros 72 bytes (UTF-8) de la clave, como en BCrypt y en {@code matches} de Spring; la
- * aplicación ya rechaza claves más largas antes de guardarlas. Un hash mal formado nunca lanza: simplemente no
- * coincide. La comparación del hash es de tiempo constante.
+ * <p>BCrypt solo usa los primeros 72 bytes (UTF-8) de la clave. Como el {@code BCryptPasswordEncoder} de Spring,
+ * {@link #codificar} se niega ({@link IllegalArgumentException}) a codificar una clave más larga, para no guardar sin
+ * avisar el hash de una clave recortada; {@link #coincide} sí recorta, igual que {@code matches} de Spring. Un hash
+ * mal formado nunca lanza: simplemente no coincide. La comparación del hash es de tiempo constante.
  */
 public final class Bcrypt implements CodificadorClave {
 
@@ -47,8 +48,14 @@ public final class Bcrypt implements CodificadorClave {
 
     private final SecureRandom aleatorio = new SecureRandom();
 
+    /**
+     * @throws IllegalArgumentException si la clave pasa de 72 bytes en UTF-8 (el mensaje no incluye la clave)
+     */
     @Override
     public String codificar(String clave) {
+        if (clave.getBytes(StandardCharsets.UTF_8).length > BYTES_MAXIMOS_CLAVE) {
+            throw new IllegalArgumentException("La clave no puede pasar de " + BYTES_MAXIMOS_CLAVE + " bytes.");
+        }
         byte[] sal = new byte[BYTES_SAL];
         aleatorio.nextBytes(sal);
         return hashear(clave, "$2a$" + (COSTO < 10 ? "0" : "") + COSTO + "$" + codificarBase64(sal, BYTES_SAL));

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -40,8 +41,11 @@ class ConstantesBlowfishTest {
     }
 
     @Test
-    void elArchivoGeneradoNoEstaDesactualizado() throws IOException {
-        Path fuente = Path.of("src/main/java/com/datemanager/infraestructura/seguridad/ConstantesBlowfish.java");
+    void elArchivoGeneradoNoEstaDesactualizado() throws IOException, URISyntaxException {
+        // target/test-classes -> carpeta del proyecto, sea cual sea el directorio desde el que se lance la prueba.
+        Path clases = Path.of(ConstantesBlowfishTest.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        Path fuente = clases.getParent().getParent()
+                .resolve("src/main/java/com/datemanager/infraestructura/seguridad/ConstantesBlowfish.java");
         // Git puede haber convertido los saltos de línea al sacar el archivo.
         assertEquals(GeneradorConstantesBlowfish.fuente(), Files.readString(fuente).replace("\r\n", "\n"));
     }
