@@ -78,10 +78,10 @@ terminal antes de usar Maven o de arrancar la API (ver abajo).
 | `DATEMANAGER_JWT_SECRETO` | sí | Clave para firmar los tokens (HS256), al menos 32 bytes; sin ella la aplicación no arranca |
 | `DATEMANAGER_ADMIN_USUARIO`, `DATEMANAGER_ADMIN_CLAVE` | no | Administrador inicial: solo se crea si al arrancar no hay **ningún** usuario (rol Administrador con todos los permisos). Si faltan, arranca igual y avisa en el log |
 | `DATEMANAGER_PERFIL` | no | `dev` activa el perfil de desarrollo (datos de ejemplo y Swagger UI); cualquier otro valor, o ninguno, es producción. Sustituye al perfil `dev` de Spring |
-| `DATEMANAGER_DB_POOL` | no | Tamaño máximo del pool de conexiones; por defecto `10` |
+| `DATEMANAGER_DB_POOL` | no | Tamaño máximo del pool de conexiones, de `1` a `200`; por defecto `10` |
 | `DATEMANAGER_PUERTO` | no | Puerto HTTP en que escucha la API; por defecto `8080` |
 | `DATEMANAGER_ZONA_HORARIA` | no | Zona del negocio; por defecto `America/Bogota`. «Hoy» y «ahora» se calculan en ella, no en la de la JVM |
-| `DATEMANAGER_CORS_ORIGENES` | no | Orígenes permitidos separados por comas; por defecto `http://localhost:4200` |
+| `DATEMANAGER_CORS_ORIGENES` | no | Orígenes permitidos separados por comas (al menos uno); por defecto `http://localhost:4200` |
 | `DATEMANAGER_TEST_DB_URL`, `DATEMANAGER_TEST_DB_USUARIO`, `DATEMANAGER_TEST_DB_CLAVE` | solo para pruebas | Conexión a la base `DateManagerTest` |
 
 ### Cargar `.env.local` en el terminal

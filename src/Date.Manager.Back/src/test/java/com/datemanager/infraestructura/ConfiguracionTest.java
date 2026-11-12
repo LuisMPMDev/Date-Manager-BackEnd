@@ -149,13 +149,35 @@ class ConfiguracionTest {
 
     @Test
     void unPoolCeroNegativoONoNumericoSeRechaza() {
-        for (String pool : List.of("0", "abc", "-3")) {
+        for (String pool : List.of("0", "abc", "-3", "201", "100000")) {
             Map<String, String> entorno = completo();
             entorno.put("DATEMANAGER_DB_POOL", pool);
 
             IllegalStateException e = assertThrows(IllegalStateException.class,
                     () -> Configuracion.desdeEntorno(entorno), pool);
             assertTrue(e.getMessage().contains("DATEMANAGER_DB_POOL"));
+        }
+    }
+
+    @Test
+    void elPoolAceptaDeUnoADoscientas() {
+        for (String pool : List.of("1", "200")) {
+            Map<String, String> entorno = completo();
+            entorno.put("DATEMANAGER_DB_POOL", pool);
+
+            assertEquals(Integer.parseInt(pool), Configuracion.desdeEntorno(entorno).dbPool());
+        }
+    }
+
+    @Test
+    void unaListaDeOrigenesCorsSinNingunOrigenSeRechaza() {
+        for (String origenes : List.of(",,", " , ")) {
+            Map<String, String> entorno = completo();
+            entorno.put("DATEMANAGER_CORS_ORIGENES", origenes);
+
+            IllegalStateException e = assertThrows(IllegalStateException.class,
+                    () -> Configuracion.desdeEntorno(entorno), origenes);
+            assertTrue(e.getMessage().contains("DATEMANAGER_CORS_ORIGENES"), e.getMessage());
         }
     }
 

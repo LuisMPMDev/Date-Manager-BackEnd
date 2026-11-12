@@ -1,6 +1,10 @@
 package com.datemanager.infraestructura.http;
 
+import java.sql.SQLException;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -88,7 +92,8 @@ public final class ManejadorErrores {
         // Errores de la base: si una restricción, un bloqueo o un disparador saltan pese a las comprobaciones de la
         // aplicación (p. ej. dos peticiones simultáneas), es un conflicto y no un 500. La excepción puede llegar
         // envuelta en cualquier otra, así que se busca en toda la cadena de causas. El texto de la base (que puede
-        // traer valores de las columnas) nunca se devuelve ni se registra: solo el nombre de la clase.
+        // traer valores de las columnas) nunca se devuelve ni se registra: solo el nombre de la clase (y, en el 500,
+        // las clases de la cadena con sus códigos SQL).
         // Primero los números de error exactos (bloqueo y disparador); la restricción es más amplia (SQLState) y va al final.
         if (ErroresBase.esFalloDeBloqueo(e)) {
             LOG.log(Level.WARNING, "Fallo de bloqueo en la base: {0}", e.getClass().getSimpleName());
@@ -101,8 +106,35 @@ public final class ManejadorErrores {
         if (ErroresBase.esViolacionDeRestriccion(e)) {
             return respuesta(409, CodigoError.CONFLICTO, MENSAJE_CONFLICTO_DE_DATOS, null, instancia);
         }
-        LOG.log(Level.SEVERE, "Error inesperado", e);
+        // Sin la excepción adjunta: su mensaje (o el de una causa del driver) puede traer valores de las columnas.
+        LOG.log(Level.SEVERE, "Error inesperado: {0}", cadenaDeCausas(e));
         return respuesta(500, CodigoError.ERROR_INTERNO, MENSAJE_INESPERADO, null, instancia);
+    }
+
+    /**
+     * Las clases de la cadena de causas, con el número de error y el SQLState de las {@link SQLException}, y el
+     * primer punto del código donde se lanzó; nunca los mensajes. P. ej.
+     * {@code IllegalStateException <- SQLServerException(error 208, estado 42S02) en Clase.metodo:12}.
+     */
+    static String cadenaDeCausas(Throwable e) {
+        StringBuilder texto = new StringBuilder();
+        Set<Throwable> vistas = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable causa = e; causa != null && vistas.add(causa); causa = causa.getCause()) {
+            if (texto.length() > 0) {
+                texto.append(" <- ");
+            }
+            texto.append(causa.getClass().getSimpleName());
+            if (causa instanceof SQLException sql) {
+                texto.append("(error ").append(sql.getErrorCode()).append(", estado ").append(sql.getSQLState())
+                        .append(')');
+            }
+        }
+        StackTraceElement[] pila = e.getStackTrace();
+        if (pila.length > 0) {
+            texto.append(" en ").append(pila[0].getClassName()).append('.').append(pila[0].getMethodName())
+                    .append(':').append(pila[0].getLineNumber());
+        }
+        return texto.toString();
     }
 
     private static Respuesta respuesta(int estado, CodigoError codigo, String mensaje, Map<String, String> campos,

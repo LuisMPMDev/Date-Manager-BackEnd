@@ -190,6 +190,30 @@ class PoolTest extends PruebaBase {
     }
 
     @Test
+    void alDevolverSeRevierteUnaTransaccionAbiertaConSqlEnModoAutomatico() throws Exception {
+        Pool p = crear(1, Duration.ofSeconds(2));
+        Connection c = p.prestar();
+        assertTrue(c.getAutoCommit());
+        try (var s = c.createStatement()) {
+            s.execute("BEGIN TRANSACTION");
+        }
+        try (var s = c.prepareStatement("INSERT INTO rol (id, nombre, descripcion) VALUES (?, N'Abierta', N'')")) {
+            s.setObject(1, nuevoId());
+            s.executeUpdate();
+        }
+
+        p.devolver(c);
+
+        Connection otra = p.prestar();
+        try (var s = otra.createStatement(); var rs = s.executeQuery("SELECT @@TRANCOUNT")) {
+            rs.next();
+            assertEquals(0, rs.getInt(1), "la conexión vuelve sin transacción abierta");
+        }
+        p.devolver(otra);
+        assertEquals(0, consultarInt("SELECT COUNT(*) FROM rol"), "lo pendiente se revirtió, no se confirmó");
+    }
+
+    @Test
     void devolverDosVecesOUnaConexionAjenaNoInflaLosPermisos() throws Exception {
         Pool p = crear(2, Duration.ofMillis(300));
         Connection c = p.prestar();

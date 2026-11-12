@@ -10,7 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -107,6 +109,32 @@ class AutenticacionServicioTest extends PruebaAdministracion {
         assertEquals(claveMala.codigo(), inexistente.codigo());
         assertNull(claveMala.campos());
         assertNull(inexistente.campos());
+    }
+
+    @Test
+    void laClaveSeCompruebaSinTenerUnaConexionPrestada() {
+        // BCrypt tarda; mientras calcula, el hilo no debe retener una conexión del pool.
+        List<Boolean> conTransaccion = new ArrayList<>();
+        CodificadorClave vigilado = new CodificadorClave() {
+            @Override
+            public String codificar(String clave) {
+                return bcrypt.codificar(clave);
+            }
+
+            @Override
+            public boolean coincide(String clave, String hash) {
+                conTransaccion.add(tx.activa());
+                return bcrypt.coincide(clave, hash);
+            }
+        };
+        AutenticacionServicio servicio = new AutenticacionServicio(tx, usuarios, roles, vigilado, jwt);
+
+        assertEquals(usuarioId, servicio.iniciarSesion("marta", "demo123").usuario().id());
+        exigirError(CodigoError.CREDENCIALES_INVALIDAS, () -> servicio.iniciarSesion("marta", "otra"));
+        exigirError(CodigoError.CREDENCIALES_INVALIDAS, () -> servicio.iniciarSesion("nadie", "demo123"));
+
+        assertEquals(List.of(false, false, false), conTransaccion,
+                "también con un usuario inexistente se compara (contra el hash de relleno), fuera de la transacción");
     }
 
     @Test

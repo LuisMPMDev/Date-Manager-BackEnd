@@ -251,6 +251,28 @@ class ManejadorErroresTest {
     }
 
     @Test
+    void unErrorInesperadoSeRegistraSinElTextoDeLaBaseSoloConClasesYCodigos() {
+        Captura captura = new Captura();
+
+        Respuesta r = conCaptura(new IllegalStateException("envoltorio con valor-de-la-columna",
+                new ErrorSql(new SQLException("Invalid object name valor-de-la-base", "42S02", 208))), captura);
+
+        assertEquals(500, r.estado());
+        assertEquals(1, captura.registros.size());
+        LogRecord registro = captura.registros.get(0);
+        assertEquals(Level.SEVERE, registro.getLevel());
+        assertNull(registro.getThrown(), "sin la excepción adjunta: su texto puede traer valores de las columnas");
+        String texto = captura.texto();
+        assertFalse(texto.contains("valor-de-la-base"), texto);
+        assertFalse(texto.contains("valor-de-la-columna"), texto);
+        assertTrue(texto.contains("IllegalStateException"), texto);
+        assertTrue(texto.contains("ErrorSql"), texto);
+        assertTrue(texto.contains("SQLException"), texto);
+        assertTrue(texto.contains("208"), texto);
+        assertTrue(texto.contains("42S02"), texto);
+    }
+
+    @Test
     void otroErrorDeLaBaseSigueSiendoUn500() {
         Logger registro = Logger.getLogger(ManejadorErrores.class.getName());
         Level nivel = registro.getLevel();

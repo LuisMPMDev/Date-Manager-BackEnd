@@ -42,18 +42,21 @@ public class AutenticacionServicio {
     public record Sesion(String token, Usuario usuario, Rol rol) {
     }
 
+    /**
+     * La clave se comprueba fuera de toda transacción: BCrypt tarda y, mientras calcula, el hilo no retiene una
+     * conexión del pool (un aluvión de logins no deja sin conexiones al resto de la API).
+     */
     public Sesion iniciarSesion(String usuario, String clave) {
-        return transaccion.leer(() -> {
-            UsuarioConClave encontrado = usuarios.buscarPorUsuario(Validaciones.normalizarUsuario(usuario))
-                    .orElse(null);
-            String hash = encontrado != null ? encontrado.claveHash() : hashDeRelleno;
-            boolean claveCorrecta = clave != null && codificador.coincide(clave, hash);
-            if (encontrado == null || !claveCorrecta) {
-                throw new ErrorNegocio(CodigoError.CREDENCIALES_INVALIDAS, MENSAJE_CREDENCIALES);
-            }
-            return new Sesion(servicioJwt.emitir(encontrado.usuario().id()), encontrado.usuario(),
-                    rolDe(encontrado.usuario()));
-        });
+        String normalizado = Validaciones.normalizarUsuario(usuario);
+        UsuarioConClave encontrado = transaccion.leer(() -> usuarios.buscarPorUsuario(normalizado).orElse(null));
+        String hash = encontrado != null ? encontrado.claveHash() : hashDeRelleno;
+        boolean claveCorrecta = clave != null && codificador.coincide(clave, hash);
+        if (encontrado == null || !claveCorrecta) {
+            throw new ErrorNegocio(CodigoError.CREDENCIALES_INVALIDAS, MENSAJE_CREDENCIALES);
+        }
+        Usuario encontradoUsuario = encontrado.usuario();
+        Rol rol = transaccion.leer(() -> rolDe(encontradoUsuario));
+        return new Sesion(servicioJwt.emitir(encontradoUsuario.id()), encontradoUsuario, rol);
     }
 
     public Sesion yo(UUID usuarioId) {

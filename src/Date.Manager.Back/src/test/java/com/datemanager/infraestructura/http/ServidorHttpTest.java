@@ -79,13 +79,14 @@ class ServidorHttpTest {
     private final AutenticacionFalsa autenticacion = new AutenticacionFalsa();
     private final AtomicInteger manejadoresEjecutados = new AtomicInteger();
     private final CountDownLatch liberado = new CountDownLatch(1);
+    private final CountDownLatch empezoLaLenta = new CountDownLatch(1);
     private Logger registroDeErrores;
     private Level nivelAnterior;
     private ClienteHttpPrueba http;
 
     @BeforeEach
     void arrancar() {
-        // Los 500 de estas pruebas son esperados: el manejador los registra con traza y aquí no se imprimen.
+        // Los 500 de estas pruebas son esperados: el manejador los registra (sin texto de la excepción) y aquí no se imprimen.
         registroDeErrores = Logger.getLogger(ManejadorErrores.class.getName());
         nivelAnterior = registroDeErrores.getLevel();
         registroDeErrores.setLevel(Level.OFF);
@@ -121,6 +122,11 @@ class ServidorHttpTest {
         rutas.agregar(publica("POST", "/api/lenta-despues", s -> {
             s.cuerpoObjeto();
             Thread.sleep(1500);
+            return Respuesta.ok(Map.of("ok", true));
+        }));
+        rutas.agregar(publica("GET", "/api/lenta-corta", s -> {
+            empezoLaLenta.countDown();
+            Thread.sleep(300);
             return Respuesta.ok(Map.of("ok", true));
         }));
         rutas.agregar(publica("POST", "/api/crear", s -> Respuesta.creada(Map.of("creado", true))));
@@ -749,6 +755,54 @@ class ServidorHttpTest {
         assertEquals(Duration.ofSeconds(30), ServidorHttp.PLAZO_LECTURA);
         // Para las cabeceras, que llegan antes de que haya un manejador: la propiedad la lee el servidor del JDK.
         assertEquals("30", System.getProperty("sun.net.httpserver.maxReqTime"));
+        // Y para quien no lee la respuesta: la escritura también tiene plazo.
+        assertEquals(Duration.ofSeconds(30), ServidorHttp.PLAZO_ESCRITURA);
+        assertEquals("30", System.getProperty("sun.net.httpserver.maxRspTime"));
+    }
+
+    @Test
+    void variasConexionesParadasEnElCuerpoNoDejanSinHilosALasDemasPeticiones() throws Exception {
+        // Una lectura del cuerpo parada no debe acaparar un hilo que otras peticiones necesiten (con hilos virtuales,
+        // la lectura sincronizada del servidor del JDK fijaba su portador: con tantas paradas como núcleos, todo
+        // esperaba al plazo de lectura).
+        int paradas = Runtime.getRuntime().availableProcessors() + 1;
+        List<Socket> sockets = new ArrayList<>();
+        try (ClienteHttpPrueba lento = ClienteHttpPrueba.iniciarConPlazo(Duration.ofSeconds(5), rutas(), autenticacion,
+                ORIGEN)) {
+            try {
+                for (int i = 0; i < paradas; i++) {
+                    Socket socket = lento.abrirSocket();
+                    sockets.add(socket);
+                    socket.getOutputStream().write((POST_CUERPO + "Content-Type: application/json\r\n"
+                            + "Content-Length: 10\r\n\r\n").getBytes(StandardCharsets.ISO_8859_1));
+                    socket.getOutputStream().flush();
+                }
+                dormir(300);
+
+                long inicio = System.nanoTime();
+                assertEquals(200, lento.get("/api/eco/1").estado());
+                long milisegundos = Duration.ofNanos(System.nanoTime() - inicio).toMillis();
+
+                assertTrue(milisegundos < 1000, paradas + " conexiones paradas; la petición tardó " + milisegundos
+                        + " ms");
+            } finally {
+                for (Socket socket : sockets) {
+                    socket.close();
+                }
+            }
+        }
+    }
+
+    @Test
+    void detenerDejaTerminarLasPeticionesEnCurso() throws Exception {
+        CompletableFuture<Resultado> enCurso = CompletableFuture.supplyAsync(() -> http.get("/api/lenta-corta"));
+        assertTrue(empezoLaLenta.await(10, TimeUnit.SECONDS));
+
+        http.close();
+
+        Resultado r = enCurso.get(10, TimeUnit.SECONDS);
+        assertEquals(200, r.estado());
+        assertEquals(Boolean.TRUE, r.json().get("ok"));
     }
 
     // ------------------------------------------------------------------ concurrencia

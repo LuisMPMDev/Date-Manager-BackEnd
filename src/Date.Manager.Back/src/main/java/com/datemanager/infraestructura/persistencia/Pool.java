@@ -3,6 +3,7 @@ package com.datemanager.infraestructura.persistencia;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -224,6 +225,11 @@ public final class Pool {
                 conexion.rollback();
             }
             conexion.setAutoCommit(true);
+            // Una transacción abierta con SQL (BEGIN TRANSACTION) en modo automático no la ve el driver: la base
+            // la seguiría teniendo abierta, con sus bloqueos, para el siguiente que reciba la conexión.
+            try (Statement sentencia = conexion.createStatement()) {
+                sentencia.execute("IF @@TRANCOUNT > 0 ROLLBACK");
+            }
             if (conexion.getTransactionIsolation() != Connection.TRANSACTION_READ_COMMITTED) {
                 conexion.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
             }

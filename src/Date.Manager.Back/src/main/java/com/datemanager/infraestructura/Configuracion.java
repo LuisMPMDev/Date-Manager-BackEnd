@@ -27,6 +27,9 @@ public record Configuracion(
 
     private static final int BYTES_MINIMOS_SECRETO = 32;
 
+    /** Más conexiones que hilos del servidor HTTP (200) no sirven de nada. */
+    private static final int POOL_MAXIMO = 200;
+
     public Configuracion {
         corsOrigenes = List.copyOf(corsOrigenes);
     }
@@ -42,7 +45,7 @@ public record Configuracion(
                 obligatoria(entorno, "DATEMANAGER_DB_URL"),
                 obligatoria(entorno, "DATEMANAGER_DB_USUARIO"),
                 obligatoria(entorno, "DATEMANAGER_DB_CLAVE"),
-                entero(entorno, "DATEMANAGER_DB_POOL", 10, 1, Integer.MAX_VALUE),
+                entero(entorno, "DATEMANAGER_DB_POOL", 10, 1, POOL_MAXIMO),
                 jwtSecreto,
                 zona(entorno),
                 origenes(opcional(entorno, "DATEMANAGER_CORS_ORIGENES", "http://localhost:4200")),
@@ -91,7 +94,13 @@ public record Configuracion(
     }
 
     private static List<String> origenes(String texto) {
-        return Arrays.stream(texto.split(",")).map(String::trim).filter(origen -> !origen.isEmpty()).toList();
+        List<String> origenes = Arrays.stream(texto.split(",")).map(String::trim).filter(origen -> !origen.isEmpty())
+                .toList();
+        if (origenes.isEmpty()) {
+            throw new IllegalStateException(
+                    "La variable DATEMANAGER_CORS_ORIGENES no tiene ningún origen: usa una lista separada por comas.");
+        }
+        return origenes;
     }
 
     /** Sin secretos (ni la URL, que puede llevar credenciales): el texto del record puede acabar en un registro. */

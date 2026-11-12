@@ -13,11 +13,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -29,7 +31,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * Servidor HTTP del JDK con un hilo virtual por petición. Por cada petición: CORS (el preflight se responde antes
+ * Servidor HTTP del JDK con un pool fijo de hilos de plataforma ({@link #HILOS}). Por cada petición: CORS (el preflight se responde antes
  * de enrutar), enrutado, sesión y permisos, lectura del cuerpo (máximo 1 MB), el {@link Manejador} de la ruta y la
  * escritura de la respuesta. Todo fallo, previsto o no, sale como el JSON de {@link ManejadorErrores}, y el
  * intercambio se cierra siempre.
@@ -41,6 +43,9 @@ public final class ServidorHttp {
     /** Tiempo máximo, por defecto, para recibir el cuerpo de una petición (o descartarlo). */
     public static final Duration PLAZO_LECTURA = Duration.ofSeconds(30);
 
+    /** Tiempo máximo para enviar una respuesta a quien no la lee (o la lee a cuentagotas). */
+    public static final Duration PLAZO_ESCRITURA = Duration.ofSeconds(30);
+
     static {
         // El servidor del JDK no corta por sí mismo a quien deja la petición a medias (cabeceras o cuerpo): con esta
         // propiedad (segundos) cierra la conexión pasado ese tiempo. Se lee una sola vez, al cargar el servidor, y
@@ -48,7 +53,22 @@ public final class ServidorHttp {
         if (System.getProperty("sun.net.httpserver.maxReqTime") == null) {
             System.setProperty("sun.net.httpserver.maxReqTime", Long.toString(PLAZO_LECTURA.toSeconds()));
         }
+        // Lo mismo al escribir: quien no lee la respuesta no retiene la conexión (ni el hilo) más de este tiempo.
+        if (System.getProperty("sun.net.httpserver.maxRspTime") == null) {
+            System.setProperty("sun.net.httpserver.maxRspTime", Long.toString(PLAZO_ESCRITURA.toSeconds()));
+        }
     }
+
+    /**
+     * Hilos del servidor. Son de plataforma y no virtuales: en JDK 21 la lectura del cuerpo del servidor del JDK es
+     * {@code synchronized} y un hilo virtual parado en ella fija su portador; con tantas conexiones paradas como
+     * núcleos, ninguna otra petición avanzaba hasta que vencía el plazo de lectura. Con un pool fijo, cada parada
+     * ocupa solo uno de sus hilos (y como mucho {@link #PLAZO_LECTURA}).
+     */
+    static final int HILOS = 200;
+
+    /** Lo que {@link #detener()} espera, como mucho, a que terminen las peticiones en curso. */
+    private static final int SEGUNDOS_DE_GRACIA = 1;
 
     /** Tamaño máximo del cuerpo de una petición. */
     static final int LIMITE_CUERPO = 1024 * 1024;
@@ -123,7 +143,7 @@ public final class ServidorHttp {
         } catch (IOException e) {
             throw new UncheckedIOException("No se pudo abrir el puerto " + puerto + ".", e);
         }
-        executor = Executors.newVirtualThreadPerTaskExecutor();
+        executor = poolDeHilos();
         vigilante = new ScheduledThreadPoolExecutor(1, tarea -> {
             Thread hilo = new Thread(tarea, "vigilante-lectura");
             hilo.setDaemon(true);
@@ -143,12 +163,32 @@ public final class ServidorHttp {
         return servidor.getAddress().getPort();
     }
 
-    /** Deja de aceptar conexiones y espera un poco a las peticiones en curso. Se puede llamar de nuevo sin efecto. */
+    /**
+     * {@link #HILOS} hilos fijos (con nombre, de tipo daemon: el hilo del servidor del JDK es el que mantiene viva la
+     * JVM). Las peticiones que llegan con todos ocupados esperan en la cola, como esperarían en la del socket.
+     */
+    private static ExecutorService poolDeHilos() {
+        AtomicInteger numero = new AtomicInteger();
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(HILOS, HILOS, 60, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(), tarea -> {
+                    Thread hilo = new Thread(tarea, "http-" + numero.incrementAndGet());
+                    hilo.setDaemon(true);
+                    return hilo;
+                });
+        // Los hilos ociosos se liberan: sin carga no quedan 200 hilos parados.
+        pool.allowCoreThreadTimeOut(true);
+        return pool;
+    }
+
+    /**
+     * Deja de aceptar conexiones y espera hasta {@link #SEGUNDOS_DE_GRACIA} a que terminen los intercambios en curso
+     * (y hasta 3 s más a sus hilos) antes de cerrar las conexiones. Se puede llamar de nuevo sin efecto.
+     */
     public synchronized void detener() {
         if (servidor == null) {
             return;
         }
-        servidor.stop(0);
+        servidor.stop(SEGUNDOS_DE_GRACIA);
         executor.shutdown();
         try {
             if (!executor.awaitTermination(3, TimeUnit.SECONDS)) {
